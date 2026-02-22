@@ -520,7 +520,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Rechercher une adresse de destination',
+            'Rechercher le destinataire',
             style: GoogleFonts.plusJakartaSans(
               color: AppColor.kGrayscaleDark100,
               fontWeight: FontWeight.w600,
@@ -549,7 +549,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                     padding: const EdgeInsets.only(right: 16),
                     child: PrimaryTextFormField(
                       controller: _rechercheController,
-                      hintText: 'Adresse, ville, code postal...',
+                      hintText: 'Nom, Prenom, Email...',
                       height: 50,
                       width: double.infinity,
                       validator: (value) {
