@@ -86,37 +86,6 @@ class _LoginPageState extends State<LoginPage> {
               // Fond blanc avec effet de gradient subtil (optionnel)
               _buildBackground(),
 
-              // Bouton retour (optionnel, si vous voulez revenir en arrière)
-              Positioned(
-                top: 48,
-                left: 16,
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: Container(
-                    height: 44,
-                    width: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 18,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-
               SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
@@ -135,8 +104,6 @@ class _LoginPageState extends State<LoginPage> {
                         _buildLoginCard(isLoading),
                         const SizedBox(height: 32),
 
-                        // Mentions légales
-                        _buildTermsAndPrivacy(),
                       ],
                     ),
                   ),
@@ -176,7 +143,7 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 35),
+        const SizedBox(height: 60),
         RichText(
           text: TextSpan(
             children: [
@@ -251,7 +218,7 @@ class _LoginPageState extends State<LoginPage> {
               return null;
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 30),
 
           // Champ mot de passe
           _buildPasswordField(),
@@ -259,11 +226,11 @@ class _LoginPageState extends State<LoginPage> {
 
           // Mot de passe oublié
           _buildRememberForgotRow(),
-          const SizedBox(height: 32),
+          const SizedBox(height: 50),
 
           // Bouton de connexion (orange)
           _buildLoginButton(isLoading),
-          const SizedBox(height: 24),
+          const SizedBox(height: 30),
 
           // Lien d'inscription
           _buildRegisterLink(),
@@ -509,63 +476,4 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Mentions légales
-  Widget _buildTermsAndPrivacy() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: 'En vous connectant, vous acceptez nos ',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: AppColor.kGrayscale40,
-                ),
-              ),
-              TextSpan(
-                text: 'Conditions d\'utilisation',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColor.kPrimary,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    Navigator.of(context).pushNamed(
-                      AppRouter.contiditionUtilisationRoute,
-                    );
-                  },
-              ),
-              TextSpan(
-                text: ' et notre ',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: AppColor.kGrayscale40,
-                ),
-              ),
-              TextSpan(
-                text: 'Politique de confidentialité',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColor.kPrimary,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    Navigator.of(context).pushNamed(
-                      AppRouter.politiqueConfRoute,
-                    );
-                  },
-              ),
-            ],
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
 }

@@ -144,8 +144,6 @@ class _RegisterPageState extends State<RegisterPage> {
                       _buildSubmitButton(isLoading),
                       const SizedBox(height: 40),
 
-                      // Termes et conditions
-                      _buildTermsAndPrivacy(),
                     ],
                   ),
                 ),
@@ -547,56 +545,4 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildTermsAndPrivacy() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text.rich(
-          TextSpan(
-            children: [
-              const TextSpan(
-                text: 'En vous inscrivant, vous acceptez nos ',
-              ),
-              TextSpan(
-                text: 'Conditions d\'utilisation',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  color: AppColor.kPrimary,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    Navigator.of(context).pushNamed(
-                      AppRouter.contiditionUtilisationRoute,
-                    );
-                  },
-              ),
-              const TextSpan(
-                text: ' et notre ',
-              ),
-              TextSpan(
-                text: 'Politique de confidentialité',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  color: AppColor.kPrimary,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    Navigator.of(context).pushNamed(
-                      AppRouter.politiqueConfRoute,
-                    );
-                  },
-              ),
-            ],
-          ),
-          textAlign: TextAlign.center,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-            color: AppColor.kGrayscale40,
-            height: 1.6,
-          ),
-        ),
-      ),
-    );
-  }
 }
