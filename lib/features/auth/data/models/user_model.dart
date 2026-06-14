@@ -8,7 +8,7 @@ class UserModel extends User {
     required super.email,
     required super.mot_de_passe,
     required super.adresse,
-    required super.telephone
+    required super.telephone,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -19,7 +19,7 @@ class UserModel extends User {
       email: json['email'] ?? '',
       mot_de_passe: json['mot_de_passe'] ?? '',
       adresse: json['adresse'] ?? '',
-      telephone: json['telephone'] ?? ''
+      telephone: json['telephone'] ?? '',
     );
   }
 
@@ -31,8 +31,29 @@ class UserModel extends User {
       'email': email,
       'mot_de_passe': mot_de_passe,
       'adresse': adresse,
-      'telephone': telephone
+      'telephone': telephone,
     };
+  }
+
+  /// COPYWITH
+  UserModel copyWith({
+    String? id,
+    String? nom,
+    String? prenom,
+    String? email,
+    String? mot_de_passe,
+    String? adresse,
+    String? telephone,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      nom: nom ?? this.nom,
+      prenom: prenom ?? this.prenom,
+      email: email ?? this.email,
+      mot_de_passe: mot_de_passe ?? this.mot_de_passe,
+      adresse: adresse ?? this.adresse,
+      telephone: telephone ?? this.telephone,
+    );
   }
 }
 
@@ -40,7 +61,10 @@ class AuthResponseModel {
   final String token;
   final UserModel user;
 
-  AuthResponseModel({required this.token, required this.user});
+  AuthResponseModel({
+    required this.token,
+    required this.user,
+  });
 
   factory AuthResponseModel.fromJson(Map<String, dynamic> json) {
     final userData = json['utilisateur'] ?? {};
@@ -56,5 +80,15 @@ class AuthResponseModel {
       'token': token,
       'utilisateur': user.toJson(),
     };
+  }
+
+  AuthResponseModel copyWith({
+    String? token,
+    UserModel? user,
+  }) {
+    return AuthResponseModel(
+      token: token ?? this.token,
+      user: user ?? this.user,
+    );
   }
 }

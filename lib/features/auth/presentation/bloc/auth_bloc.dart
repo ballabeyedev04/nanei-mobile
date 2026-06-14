@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../../core/config/env.dart';
 import '../../../../core/services/token_service.dart';
 import '../../../../injection_container.dart';
 import '../../domain/usecases/login_user.dart';
@@ -68,16 +70,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
 
     try {
+      final tokenService = sl<TokenService>();
       final storage = sl<FlutterSecureStorage>();
 
-      await sl<TokenService>().clearToken();
+      // Appel backend best-effort (token révocation)
+      final refreshToken = await storage.read(key: 'refresh_token');
+      if (refreshToken != null) {
+        try {
+          await sl<Dio>().post(
+            Env.authLogout,
+            data: {'refreshToken': refreshToken},
+          );
+        } catch (_) {
+          // Ignore — on déconnecte localement quoi qu'il arrive
+        }
+      }
+
+      await tokenService.clearToken();
       await storage.delete(key: 'user_id');
+      await storage.delete(key: 'refresh_token');
 
       emit(AuthInitial());
     } catch (e) {
       emit(AuthFailure(message: 'Erreur lors de la déconnexion : $e'));
     }
   }
-
-
 }

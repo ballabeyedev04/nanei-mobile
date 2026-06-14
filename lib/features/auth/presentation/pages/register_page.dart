@@ -1,17 +1,15 @@
-import 'package:francomalishipp/core/routes/app_router.dart';
-import 'package:francomalishipp/core/widgets/primary_text_formField.dart';
-import 'package:francomalishipp/features/auth/presentation/widgets/PasswordTextField.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:toastification/toastification.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+
+import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_color.dart';
 import '../../../../core/widgets/toastNotif.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
-import 'package:flutter/gestures.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -20,8 +18,8 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
-  // Contrôleurs pour les champs
+class _RegisterPageState extends State<RegisterPage>
+    with SingleTickerProviderStateMixin {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -29,22 +27,44 @@ class _RegisterPageState extends State<RegisterPage> {
   final _addressController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  final _formKey = GlobalKey<FormState>();
-  String? _completePhoneNumber; // Stocke le numéro complet avec indicatif
+  final _firstNameFocus = FocusNode();
+  final _lastNameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _addressFocus = FocusNode();
+  final _passwordFocus = FocusNode();
 
-  void _submitRegistration() {
-    if (_formKey.currentState!.validate()) {
-      context.read<AuthBloc>().add(
-        RegisterRequested(
-          nom: _lastNameController.text.trim(),
-          prenom: _firstNameController.text.trim(),
-          email: _emailController.text.trim(),
-          mot_de_passe: _passwordController.text,
-          adresse: _addressController.text.trim(),
-          telephone: _completePhoneNumber ?? _phoneController.text.trim()
-        ),
-      );
-    }
+  bool _firstNameFocused = false;
+  bool _lastNameFocused = false;
+  bool _emailFocused = false;
+  bool _addressFocused = false;
+  bool _passwordFocused = false;
+  bool _obscurePassword = true;
+
+  final _formKey = GlobalKey<FormState>();
+  String? _completePhoneNumber;
+
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim =
+        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _animController.forward();
+
+    void listenFocus(FocusNode node, VoidCallback cb) =>
+        node.addListener(() => setState(cb));
+
+    listenFocus(_firstNameFocus, () => _firstNameFocused = _firstNameFocus.hasFocus);
+    listenFocus(_lastNameFocus, () => _lastNameFocused = _lastNameFocus.hasFocus);
+    listenFocus(_emailFocus, () => _emailFocused = _emailFocus.hasFocus);
+    listenFocus(_addressFocus, () => _addressFocused = _addressFocus.hasFocus);
+    listenFocus(_passwordFocus, () => _passwordFocused = _passwordFocus.hasFocus);
   }
 
   @override
@@ -55,13 +75,39 @@ class _RegisterPageState extends State<RegisterPage> {
     _phoneController.dispose();
     _addressController.dispose();
     _passwordController.dispose();
+    _firstNameFocus.dispose();
+    _lastNameFocus.dispose();
+    _emailFocus.dispose();
+    _addressFocus.dispose();
+    _passwordFocus.dispose();
+    _animController.dispose();
     super.dispose();
+  }
+
+  void _submitRegistration() {
+    FocusScope.of(context).unfocus();
+    if (_formKey.currentState!.validate()) {
+      context.read<AuthBloc>().add(
+            RegisterRequested(
+              nom: _lastNameController.text.trim(),
+              prenom: _firstNameController.text.trim(),
+              email: _emailController.text.trim(),
+              mot_de_passe: _passwordController.text,
+              adresse: _addressController.text.trim(),
+              telephone:
+                  _completePhoneNumber ?? _phoneController.text.trim(),
+            ),
+          );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final safePadding = MediaQuery.of(context).padding;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColor.kBackground,
       body: BlocConsumer<AuthBloc, AuthState>(
         listenWhen: (previous, current) => previous != current,
         listener: (context, state) {
@@ -75,7 +121,7 @@ class _RegisterPageState extends State<RegisterPage> {
             );
             Navigator.of(context).pushNamedAndRemoveUntil(
               AppRouter.loginRoute,
-                  (route) => false,
+              (route) => false,
             );
             context.read<AuthBloc>().add(ResetAuthState());
           } else if (state is AuthFailure) {
@@ -89,64 +135,33 @@ class _RegisterPageState extends State<RegisterPage> {
         },
         builder: (context, state) {
           final isLoading = state is AuthLoading;
-
           return Stack(
             children: [
-              // Background avec effet de gradient
-              _buildBackground(),
-
-              // Bouton retour
-              Positioned(
-                top: 48,
-                left: 16,
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    height: 44,
-                    width: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+              _buildDecorativeBackground(size),
+              SafeArea(
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      16,
+                      24,
+                      safePadding.bottom + 24,
                     ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 18,
-                      color: Colors.black,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildBackButton(),
+                          const SizedBox(height: 20),
+                          _buildHeader(),
+                          const SizedBox(height: 28),
+                          _buildCard(isLoading),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ),
-
-              SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 40),
-
-                      // Header
-                      _buildHeader(),
-                      const SizedBox(height: 32),
-
-                      // Formulaire unique
-                      _buildForm(isLoading),
-                      const SizedBox(height: 32),
-
-                      // Bouton d'inscription
-                      _buildSubmitButton(isLoading),
-                      const SizedBox(height: 40),
-
-                      // Termes et conditions
-                      _buildTermsAndPrivacy(),
-                    ],
                   ),
                 ),
               ),
@@ -157,20 +172,32 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildBackground() {
-    return Column(
+  // ── Fond décoratif ─────────────────────────────────────────────────────────
+  Widget _buildDecorativeBackground(Size size) {
+    return Stack(
       children: [
-        Expanded(
+        Container(color: AppColor.kBackground),
+        Positioned(
+          top: -size.width * 0.2,
+          right: -size.width * 0.15,
           child: Container(
+            width: size.width * 0.7,
+            height: size.width * 0.7,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColor.kPrimary.withOpacity(0.05),
-                  Colors.transparent,
-                ],
-              ),
+              shape: BoxShape.circle,
+              color: AppColor.kPrimary.withValues(alpha: 0.07),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: size.height * 0.1,
+          left: -size.width * 0.25,
+          child: Container(
+            width: size.width * 0.55,
+            height: size.width * 0.55,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColor.kPrimary.withValues(alpha: 0.05),
             ),
           ),
         ),
@@ -178,367 +205,429 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
+  // ── Bouton retour ──────────────────────────────────────────────────────────
+  Widget _buildBackButton() {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 17,
+          color: AppColor.kGrayscaleDark100,
+        ),
+      ),
+    );
+  }
+
+  // ── En-tête ────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 25),
-        Text(
-          'Créez votre compte',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 32,
-            fontWeight: FontWeight.w800,
-            color: AppColor.kGrayscaleDark100,
-            height: 1.2,
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: AppColor.kPrimary,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppColor.kPrimary.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.person_add_rounded,
+            color: Colors.white,
+            size: 26,
+          ),
+        ),
+        const SizedBox(height: 20),
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: 'Créez votre\n',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: AppColor.kGrayscaleDark100,
+                  height: 1.2,
+                ),
+              ),
+              TextSpan(
+                text: 'compte',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: AppColor.kPrimary,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Remplissez vos informations pour commencer',
+          'Quelques informations et vous êtes prêt !',
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: FontWeight.w500,
             color: AppColor.kGrayscale40,
-            height: 1.4,
+            height: 1.5,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildForm(bool isLoading) {
+  // ── Carte principale ───────────────────────────────────────────────────────
+  Widget _buildCard(bool isLoading) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: AppColor.kPrimary.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 40,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 12),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
+            color: AppColor.kPrimary.withValues(alpha: 0.06),
+            blurRadius: 24,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            // Prénom
-            _buildTextFieldWithLabel(
-              label: 'Prénom',
-              hint: 'Ex: Jane',
-              controller: _firstNameController,
-              prefixIcon: Icons.person_outline,
-              isRequired: true,
-            ),
-            const SizedBox(height: 16),
-
-            // Nom
-            _buildTextFieldWithLabel(
-              label: 'Nom',
-              hint: 'Ex: Doe',
-              controller: _lastNameController,
-              prefixIcon: Icons.person_outline,
-              isRequired: true,
-            ),
-            const SizedBox(height: 16),
-
-            // Téléphone avec indicatif
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Téléphone',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: AppColor.kGrayscaleDark100,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      ' *',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: Colors.red,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Prénom + Nom côte à côte
+          Row(
+            children: [
+              Expanded(
+                child: _buildField(
+                  label: 'Prénom',
+                  hint: 'Jane',
+                  controller: _firstNameController,
+                  focusNode: _firstNameFocus,
+                  isFocused: _firstNameFocused,
+                  icon: Icons.badge_outlined,
+                  nextFocus: _lastNameFocus,
                 ),
-                const SizedBox(height: 8),
-                IntlPhoneField(
-                  controller: _phoneController,
-                  decoration: InputDecoration(
-                    hintText: '77 123 45 67',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: AppColor.kLine),
-                    ),
-                  ),
-                  initialCountryCode: 'SN',
-                  onChanged: (phone) {
-                    setState(() {
-                      _completePhoneNumber = phone.completeNumber;
-                    });
-                  },
-                  validator: (phone) {
-                    if (phone == null || phone.number.isEmpty) {
-                      return 'Numéro requis';
-                    }
-                    if (phone.number.length < 7) {
-                      return 'Numéro invalide';
-                    }
-                    return null;
-                  },
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildField(
+                  label: 'Nom',
+                  hint: 'Doe',
+                  controller: _lastNameController,
+                  focusNode: _lastNameFocus,
+                  isFocused: _lastNameFocused,
+                  icon: Icons.badge_outlined,
+                  nextFocus: _emailFocus,
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
 
-            // Email
-            _buildTextFieldWithLabel(
-              label: 'Adresse e-mail',
-              hint: 'exemple@gmail.com',
-              controller: _emailController,
-              prefixIcon: Icons.email_outlined,
-              keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (value == null || value.isEmpty) return 'Ce champ est requis';
-                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                  return 'Email invalide';
-                }
-                return null;
-              },
-              isRequired: true,
-            ),
-            const SizedBox(height: 16),
+          // Téléphone
+          _buildPhoneField(),
+          const SizedBox(height: 20),
 
-            // Mot de passe
-            _buildPasswordField(),
-            const SizedBox(height: 16),
+          // Email
+          _buildField(
+            label: 'Adresse e-mail',
+            hint: 'exemple@gmail.com',
+            controller: _emailController,
+            focusNode: _emailFocus,
+            isFocused: _emailFocused,
+            icon: Icons.alternate_email_rounded,
+            keyboardType: TextInputType.emailAddress,
+            nextFocus: _passwordFocus,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Ce champ est requis';
+              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
+                return 'Email invalide';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
 
-            // Adresse
-            _buildTextFieldWithLabel(
-              label: 'Adresse complète',
-              hint: 'Ex: Dakar, Sénégal',
-              controller: _addressController,
-              prefixIcon: Icons.location_on_outlined,
-              isRequired: true,
-            ),
-          ],
-        ),
+          // Mot de passe
+          _buildPasswordField(),
+          const SizedBox(height: 20),
+
+          // Adresse
+          _buildField(
+            label: 'Adresse complète',
+            hint: 'Ex: Dakar, Sénégal',
+            controller: _addressController,
+            focusNode: _addressFocus,
+            isFocused: _addressFocused,
+            icon: Icons.location_on_outlined,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submitRegistration(),
+          ),
+          const SizedBox(height: 28),
+
+          // Bouton s'inscrire
+          _buildSubmitButton(isLoading),
+          const SizedBox(height: 20),
+
+          // Lien connexion
+          _buildLoginLink(),
+        ],
       ),
     );
   }
 
-  Widget _buildTextFieldWithLabel({
+  // ── Champ texte générique ──────────────────────────────────────────────────
+  Widget _buildField({
     required String label,
     required String hint,
     required TextEditingController controller,
-    required IconData prefixIcon,
+    required FocusNode focusNode,
+    required bool isFocused,
+    required IconData icon,
     TextInputType keyboardType = TextInputType.text,
+    TextInputAction textInputAction = TextInputAction.next,
+    FocusNode? nextFocus,
     String? Function(String?)? validator,
-    bool isRequired = false,
+    void Function(String)? onSubmitted,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                color: AppColor.kGrayscaleDark100,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-            if (isRequired)
-              Text(
-                ' *',
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.red,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-          ],
-        ),
+        _fieldLabel(label),
         const SizedBox(height: 8),
-        Container(
-          height: 52,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColor.kLine, width: 1.5),
+        TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onSubmitted ??
+              (nextFocus != null
+                  ? (_) => FocusScope.of(context).requestFocus(nextFocus)
+                  : null),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColor.kGrayscaleDark100,
           ),
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: Icon(
-                  prefixIcon,
-                  color: AppColor.kPrimary,
-                  size: 20,
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: PrimaryTextFormField(
-                    controller: controller,
-                    hintText: hint,
-                    height: 50,
-                    width: double.infinity,
-                    keyboardType: keyboardType,
-                    validator: validator,
-                  ),
-                ),
-              ),
-            ],
+          validator: validator ??
+              (v) => (v == null || v.trim().isEmpty)
+                  ? 'Ce champ est requis'
+                  : null,
+          decoration: _inputDecoration(
+            hint: hint,
+            icon: icon,
+            isFocused: isFocused,
           ),
         ),
       ],
     );
   }
 
+  // ── Champ téléphone ────────────────────────────────────────────────────────
+  Widget _buildPhoneField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel('Téléphone'),
+        const SizedBox(height: 8),
+        IntlPhoneField(
+          controller: _phoneController,
+          initialCountryCode: 'SN',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColor.kGrayscaleDark100,
+          ),
+          dropdownTextStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColor.kGrayscaleDark100,
+          ),
+          decoration: InputDecoration(
+            hintText: '77 123 45 67',
+            hintStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: AppColor.kGrayscale20,
+            ),
+            filled: true,
+            fillColor: AppColor.kBackground,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColor.kLine, width: 1.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide:
+                  const BorderSide(color: AppColor.kPrimary, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide:
+                  const BorderSide(color: Colors.redAccent, width: 1.5),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+            ),
+            errorStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.redAccent,
+            ),
+          ),
+          onChanged: (phone) {
+            setState(() => _completePhoneNumber = phone.completeNumber);
+          },
+          validator: (phone) {
+            if (phone == null || phone.number.isEmpty) {
+              return 'Numéro requis';
+            }
+            if (phone.number.length < 7) return 'Numéro invalide';
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  // ── Champ mot de passe ─────────────────────────────────────────────────────
   Widget _buildPasswordField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'Mot de passe',
-              style: GoogleFonts.plusJakartaSans(
-                color: AppColor.kGrayscaleDark100,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-            Text(
-              ' *',
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
+        _fieldLabel('Mot de passe'),
         const SizedBox(height: 8),
-        Container(
-          height: 52,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColor.kLine, width: 1.5),
+        TextFormField(
+          controller: _passwordController,
+          focusNode: _passwordFocus,
+          obscureText: _obscurePassword,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: (_) =>
+              FocusScope.of(context).requestFocus(_addressFocus),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColor.kGrayscaleDark100,
           ),
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: Icon(
-                  Icons.lock_outline,
-                  color: AppColor.kPrimary,
-                  size: 20,
-                ),
+          validator: (v) {
+            if (v == null || v.isEmpty) return 'Ce champ est requis';
+            if (v.length < 6) return 'Minimum 6 caractères';
+            return null;
+          },
+          decoration: _inputDecoration(
+            hint: 'Créez un mot de passe sécurisé',
+            icon: Icons.lock_outline_rounded,
+            isFocused: _passwordFocused,
+          ).copyWith(
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                size: 20,
+                color: _passwordFocused
+                    ? AppColor.kPrimary
+                    : AppColor.kGrayscale40,
               ),
-              Expanded(
-                child: PasswordTextField(
-                  controller: _passwordController,
-                  hintText: 'Créez un mot de passe sécurisé',
-                  height: 50,
-                  width: double.infinity,
-                  borderRadius: BorderRadius.circular(12),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Ce champ est requis';
-                    if (value.length < 6) {
-                      return 'Le mot de passe doit contenir au moins 6 caractères';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-            ],
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+              splashRadius: 20,
+            ),
           ),
         ),
       ],
     );
   }
 
+  // ── Bouton s'inscrire ──────────────────────────────────────────────────────
   Widget _buildSubmitButton(bool isLoading) {
-    return SizedBox(
-      height: 56,
-      width: double.infinity,
+    return AnimatedOpacity(
+      opacity: isLoading ? 0.75 : 1.0,
+      duration: const Duration(milliseconds: 200),
       child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
-        elevation: 0,
-        color: AppColor.kPrimary,
-        child: InkWell(
-          onTap: isLoading ? null : _submitRegistration,
-          borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.white.withOpacity(0.2),
-          highlightColor: Colors.white.withOpacity(0.1),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: isLoading
-                  ? null
-                  : LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  AppColor.kPrimary,
-                  AppColor.kPrimary.withOpacity(0.8),
-                ],
-              ),
-              boxShadow: isLoading
-                  ? null
-                  : [
-                BoxShadow(
-                  color: AppColor.kPrimary.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: const LinearGradient(
+              colors: [AppColor.kPrimary, AppColor.kPrimaryDark],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
             ),
-            child: Center(
-              child: isLoading
-                  ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
-                ),
-              )
-                  : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'S\'inscrire',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ],
+            boxShadow: [
+              BoxShadow(
+                color: AppColor.kPrimary.withValues(alpha: 0.35),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: InkWell(
+            onTap: isLoading ? null : _submitRegistration,
+            borderRadius: BorderRadius.circular(16),
+            splashColor: Colors.white.withValues(alpha: 0.15),
+            highlightColor: Colors.white.withValues(alpha: 0.08),
+            child: SizedBox(
+              height: 54,
+              child: Center(
+                child: isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Créer mon compte',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Icon(
+                            Icons.check_circle_outline_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ],
+                      ),
               ),
             ),
           ),
@@ -547,55 +636,92 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildTermsAndPrivacy() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text.rich(
-          TextSpan(
-            children: [
-              const TextSpan(
-                text: 'En vous inscrivant, vous acceptez nos ',
-              ),
-              TextSpan(
-                text: 'Conditions d\'utilisation',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  color: AppColor.kPrimary,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    Navigator.of(context).pushNamed(
-                      AppRouter.contiditionUtilisationRoute,
-                    );
-                  },
-              ),
-              const TextSpan(
-                text: ' et notre ',
-              ),
-              TextSpan(
-                text: 'Politique de confidentialité',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  color: AppColor.kPrimary,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    Navigator.of(context).pushNamed(
-                      AppRouter.politiqueConfRoute,
-                    );
-                  },
-              ),
-            ],
-          ),
-          textAlign: TextAlign.center,
+  // ── Lien "Déjà un compte ?" ────────────────────────────────────────────────
+  Widget _buildLoginLink() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          'Déjà un compte ? ',
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
             color: AppColor.kGrayscale40,
-            height: 1.6,
           ),
         ),
+        GestureDetector(
+          onTap: () => Navigator.of(context).pushNamed('/login'),
+          child: Text(
+            'Se connecter',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColor.kPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  Widget _fieldLabel(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppColor.kGrayscale80,
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String hint,
+    required IconData icon,
+    required bool isFocused,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.plusJakartaSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        color: AppColor.kGrayscale20,
+      ),
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 14, right: 10),
+        child: Icon(
+          icon,
+          size: 20,
+          color: isFocused ? AppColor.kPrimary : AppColor.kGrayscale40,
+        ),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      filled: true,
+      fillColor: isFocused ? AppColor.kAccentSoft : AppColor.kBackground,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppColor.kLine, width: 1.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppColor.kPrimary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+      ),
+      errorStyle: GoogleFonts.plusJakartaSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: Colors.redAccent,
       ),
     );
   }
