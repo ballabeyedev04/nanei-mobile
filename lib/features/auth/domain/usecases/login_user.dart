@@ -1,5 +1,5 @@
 import 'package:dartz/dartz.dart';
-import 'package:francomalishipp/core/errors/failure.dart';
+import 'package:nanei/core/errors/failure.dart';
 import '../entities/user.dart';
 import '../repositories/auth_repository.dart';
 

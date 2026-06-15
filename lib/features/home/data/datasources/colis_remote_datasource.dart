@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:francomalishipp/core/config/env.dart';
+import 'package:nanei/core/config/env.dart';
 import '../../domain/entities/colis.dart';
 import '../../domain/entities/client_recherche.dart';
 import '../../domain/entities/notification_model.dart';

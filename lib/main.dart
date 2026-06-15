@@ -1,8 +1,8 @@
-import 'package:francomalishipp/core/routes/app_router.dart';
-import 'package:francomalishipp/core/theme/app_theme.dart';
-import 'package:francomalishipp/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:francomalishipp/features/auth/presentation/pages/splash_page.dart';
-import 'package:francomalishipp/injection_container.dart' as di;
+import 'package:nanei/core/routes/app_router.dart';
+import 'package:nanei/core/theme/app_theme.dart';
+import 'package:nanei/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nanei/features/auth/presentation/pages/splash_page.dart';
+import 'package:nanei/injection_container.dart' as di;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
       child: ToastificationWrapper(
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'FrancoMaliShip',
+          title: 'Nanei',
           theme: AppTheme.light(),
           home: const SplashPage(),
           onGenerateRoute: AppRouter.onGenerateRoute,

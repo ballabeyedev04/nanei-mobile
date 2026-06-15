@@ -150,7 +150,7 @@ class _SplashPageState extends State<SplashPage>
                 child: Column(
                   children: [
                     const Text(
-                      'FrancoMaliShip',
+                      'Nanei',
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,

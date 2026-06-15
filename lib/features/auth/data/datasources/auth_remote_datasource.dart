@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:francomalishipp/core/config/env.dart';
+import 'package:nanei/core/config/env.dart';
 import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {

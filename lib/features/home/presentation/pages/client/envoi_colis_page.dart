@@ -3,15 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:toastification/toastification.dart';
 import 'dart:async';
-import 'package:francomalishipp/core/theme/app_color.dart';
-import 'package:francomalishipp/core/widgets/app_toast.dart';
-import 'package:francomalishipp/core/widgets/toastNotif.dart';
+import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/widgets/app_toast.dart';
+import 'package:nanei/core/widgets/toastNotif.dart';
 import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
 import '../../../domain/entities/client_recherche.dart';
 import '../../../domain/usecases/envoyer_colis.dart';
 import '../../../domain/usecases/rechercher_client.dart';
-import 'package:francomalishipp/injection_container.dart';
+import 'package:nanei/injection_container.dart';
 
 // ── Données pays ────────────────────────────────────────────────────────────
 

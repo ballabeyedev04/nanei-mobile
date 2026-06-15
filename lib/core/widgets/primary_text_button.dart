@@ -1,7 +1,7 @@
 
 
 
-import 'package:francomalishipp/core/theme/app_color.dart';
+import 'package:nanei/core/theme/app_color.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 class PrimaryTextButton extends StatelessWidget {

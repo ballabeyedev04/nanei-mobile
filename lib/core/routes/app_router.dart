@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:francomalishipp/features/auth/presentation/pages/login_page.dart';
-import 'package:francomalishipp/features/auth/presentation/pages/register_page.dart';
-import 'package:francomalishipp/features/home/presentation/pages/client/main_client_page.dart';
-import 'package:francomalishipp/features/auth/domain/entities/user.dart';
-import 'package:francomalishipp/features/home/presentation/pages/client/envoi_colis_page.dart';
+import 'package:nanei/features/auth/presentation/pages/login_page.dart';
+import 'package:nanei/features/auth/presentation/pages/register_page.dart';
+import 'package:nanei/features/home/presentation/pages/client/main_client_page.dart';
+import 'package:nanei/features/auth/domain/entities/user.dart';
+import 'package:nanei/features/home/presentation/pages/client/envoi_colis_page.dart';
 
 class AppRouter {
   static const String loginRoute = '/login';

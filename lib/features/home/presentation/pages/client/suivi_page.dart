@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:francomalishipp/core/theme/app_color.dart';
-import 'package:francomalishipp/features/auth/domain/entities/user.dart';
+import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/features/auth/domain/entities/user.dart';
 import '../../../domain/entities/colis.dart';
 import '../../../domain/entities/personne.dart';
 import '../../bloc/colis_bloc.dart';

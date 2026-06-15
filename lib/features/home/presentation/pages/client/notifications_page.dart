@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:francomalishipp/core/theme/app_color.dart';
-import 'package:francomalishipp/features/auth/domain/entities/user.dart';
-import 'package:francomalishipp/injection_container.dart';
+import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/features/auth/domain/entities/user.dart';
+import 'package:nanei/injection_container.dart';
 import 'package:dio/dio.dart';
 import '../../../domain/entities/notification_model.dart';
 import '../../bloc/colis_bloc.dart';

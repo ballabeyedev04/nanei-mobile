@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:francomalishipp/core/config/env.dart';
-import 'package:francomalishipp/core/theme/app_color.dart';
-import 'package:francomalishipp/core/widgets/app_toast.dart';
-import 'package:francomalishipp/injection_container.dart';
+import 'package:nanei/core/config/env.dart';
+import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/widgets/app_toast.dart';
+import 'package:nanei/injection_container.dart';
 
 class ProfilsPage extends StatefulWidget {
   const ProfilsPage({super.key});
@@ -270,7 +270,7 @@ class _ProfilsPageState extends State<ProfilsPage>
                           size: 13, color: Color(0xFFFF7A00)),
                       const SizedBox(width: 5),
                       Text(
-                        'Client FrancoMaliShip',
+                        'Client Nanei',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
