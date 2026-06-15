@@ -41,6 +41,8 @@ class Env {
 
   // ── Client ────────────────────────────────────────────────────────────────
   static String get clientRechercher => '/client/rechercher-client';
+  static String get clientCountries  => '/client/countries';
+  static String clientPricing(String countryId) => '/client/pricing/$countryId';
 
   // ── Notifications ─────────────────────────────────────────────────────────
   static String get notificationsMes  => '/client/mes-notifications';

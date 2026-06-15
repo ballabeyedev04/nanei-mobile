@@ -1,6 +1,7 @@
 import '../entities/colis.dart';
 import '../entities/client_recherche.dart';
 import '../entities/notification_model.dart';
+import '../entities/country_pricing.dart';
 
 abstract class ColisRepository {
   Future<List<Colis>> getColisEnvoyes();
@@ -17,4 +18,6 @@ abstract class ColisRepository {
   Future<List<ClientRecherche>> rechercherClient(String query);
   Future<List<NotificationModel>> getNotifications();
   Future<void> marquerNotificationLue(String id);
+  Future<List<CountryItem>> getCountries();
+  Future<CountryPricing> getPricingByCountry(String countryId);
 }

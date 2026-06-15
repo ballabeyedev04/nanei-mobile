@@ -3,9 +3,11 @@ import 'package:nanei/core/config/env.dart';
 import '../../domain/entities/colis.dart';
 import '../../domain/entities/client_recherche.dart';
 import '../../domain/entities/notification_model.dart';
+import '../../domain/entities/country_pricing.dart';
 import '../models/colis_model.dart';
 import '../models/client_recherche_model.dart';
 import '../models/notification_model.dart' as nm;
+import '../models/country_pricing_model.dart';
 
 // ── Interface ─────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,8 @@ abstract class ColisRemoteDataSource {
   Future<List<ClientRecherche>> rechercherClient(String query);
   Future<List<NotificationModel>> getNotifications();
   Future<void> marquerNotificationLue(String id);
+  Future<List<CountryItem>> getCountries();
+  Future<CountryPricing> getPricingByCountry(String countryId);
 }
 
 // ── Implémentation ────────────────────────────────────────────────────────────
@@ -104,5 +108,18 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
   @override
   Future<void> marquerNotificationLue(String id) async {
     await dio.patch(Env.notificationLire(id));
+  }
+
+  @override
+  Future<List<CountryItem>> getCountries() async {
+    final response = await dio.get(Env.clientCountries);
+    final List data = response.data['data'] ?? [];
+    return data.map((e) => CountryItemModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<CountryPricing> getPricingByCountry(String countryId) async {
+    final response = await dio.get(Env.clientPricing(countryId));
+    return CountryPricingModel.fromJson(response.data['data'] as Map<String, dynamic>);
   }
 }

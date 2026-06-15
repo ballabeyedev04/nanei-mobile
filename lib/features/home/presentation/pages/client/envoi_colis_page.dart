@@ -9,27 +9,12 @@ import 'package:nanei/core/widgets/toastNotif.dart';
 import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
 import '../../../domain/entities/client_recherche.dart';
+import '../../../domain/entities/country_pricing.dart';
 import '../../../domain/usecases/envoyer_colis.dart';
 import '../../../domain/usecases/rechercher_client.dart';
+import '../../../domain/usecases/get_countries.dart';
+import '../../../domain/usecases/get_pricing_by_country.dart';
 import 'package:nanei/injection_container.dart';
-
-// ── Données pays ────────────────────────────────────────────────────────────
-
-class _Pays {
-  final String nom;
-  final String drapeau;
-  final double prixParKg;
-  const _Pays(this.nom, this.drapeau, this.prixParKg);
-}
-
-const _listePays = [
-  _Pays('Sénégal', '🇸🇳', 10.0),
-  _Pays('Mali', '🇲🇱', 14.0),
-  _Pays("Côte d'Ivoire", '🇨🇮', 12.0),
-  _Pays('France', '🇫🇷', 20.0),
-];
-
-// ── Page ────────────────────────────────────────────────────────────────────
 
 class EnvoiColisPage extends StatefulWidget {
   const EnvoiColisPage({super.key});
@@ -40,8 +25,20 @@ class EnvoiColisPage extends StatefulWidget {
 
 class _EnvoiColisPageState extends State<EnvoiColisPage> {
   int _currentStep = 1;
-  _Pays? _selectedPays;
 
+  // ── Pays / Pricing ───────────────────────────────────────────────────────
+  List<CountryItem> _countries = [];
+  bool _isLoadingCountries = false;
+  CountryItem? _selectedCountry;
+  CountryPricing? _countryPricing;
+  bool _isLoadingPricing = false;
+  String? _selectedShippingType; // 'aérien' | 'maritime'
+
+  // ── Services optionnels ──────────────────────────────────────────────────
+  bool _needsPickup = false;
+  bool _needsDelivery = false;
+
+  // ── Champs formulaire ────────────────────────────────────────────────────
   final _poidsController = TextEditingController();
   final _typeController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -50,7 +47,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   final _formKeyStep1 = GlobalKey<FormState>();
   final _formKeyStep2 = GlobalKey<FormState>();
 
-  // Focus nodes step 1
   final _poidsFocus = FocusNode();
   final _typeFocus = FocusNode();
   final _descFocus = FocusNode();
@@ -59,15 +55,80 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   bool _descFocused = false;
   bool _rechercheFocused = false;
 
+  // ── Destinataire ─────────────────────────────────────────────────────────
   List<ClientRecherche> _resultatsRecherche = [];
   ClientRecherche? _selectedDestinataire;
   bool _isLoadingRecherche = false;
   Timer? _debounceTimer;
 
+  // ── Calcul prix ──────────────────────────────────────────────────────────
+  double get _pricePerKg {
+    if (_countryPricing == null || _selectedShippingType == null) return 0;
+    final poids = double.tryParse(_poidsController.text) ?? 0;
+    final prices = _countryPricing!.shippingPrices
+        .where((p) => p.type == _selectedShippingType)
+        .toList();
+    for (final p in prices) {
+      if (poids >= p.minWeight && poids <= p.maxWeight) return p.pricePerKg;
+    }
+    return prices.isNotEmpty ? prices.first.pricePerKg : 0;
+  }
+
+  double get _pickupPrice {
+    if (!_needsPickup || _countryPricing == null) return 0;
+    try {
+      return _countryPricing!.servicePrices
+          .firstWhere((p) => p.serviceType == 'récupération')
+          .price;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  double get _deliveryPrice {
+    if (!_needsDelivery || _countryPricing == null) return 0;
+    try {
+      return _countryPricing!.servicePrices
+          .firstWhere((p) => p.serviceType == 'livraison')
+          .price;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  double get _pickupPriceDisplay {
+    if (_countryPricing == null) return 0;
+    try {
+      return _countryPricing!.servicePrices
+          .firstWhere((p) => p.serviceType == 'récupération')
+          .price;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  double get _deliveryPriceDisplay {
+    if (_countryPricing == null) return 0;
+    try {
+      return _countryPricing!.servicePrices
+          .firstWhere((p) => p.serviceType == 'livraison')
+          .price;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  double get _totalEstime {
+    final poids = double.tryParse(_poidsController.text) ?? 0;
+    return poids * _pricePerKg + _pickupPrice + _deliveryPrice;
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadCountries();
     _rechercheController.addListener(_onSearchChanged);
+    _poidsController.addListener(() => setState(() {}));
     _poidsFocus.addListener(() =>
         setState(() => _poidsFocused = _poidsFocus.hasFocus));
     _typeFocus.addListener(() =>
@@ -93,6 +154,62 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     super.dispose();
   }
 
+  Future<void> _loadCountries() async {
+    setState(() => _isLoadingCountries = true);
+    try {
+      final countries = await sl<GetCountries>()();
+      setState(() {
+        _countries = countries;
+        _isLoadingCountries = false;
+      });
+    } catch (_) {
+      setState(() => _isLoadingCountries = false);
+    }
+  }
+
+  Future<void> _loadPricing(String countryId) async {
+    setState(() {
+      _isLoadingPricing = true;
+      _countryPricing = null;
+      _selectedShippingType = null;
+      _needsPickup = false;
+      _needsDelivery = false;
+    });
+    try {
+      final pricing = await sl<GetPricingByCountry>()(countryId);
+      setState(() {
+        _countryPricing = pricing;
+        _isLoadingPricing = false;
+      });
+    } catch (_) {
+      setState(() => _isLoadingPricing = false);
+    }
+  }
+
+  void _ouvrirSelecteurPays() {
+    if (_isLoadingCountries) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _PaysBottomSheet(
+        countries: _countries,
+        selected: _selectedCountry,
+        onSelect: (c) {
+          setState(() {
+            _selectedCountry = c;
+            _selectedShippingType = null;
+            _countryPricing = null;
+            _needsPickup = false;
+            _needsDelivery = false;
+          });
+          Navigator.of(context).pop();
+          _loadPricing(c.id);
+        },
+      ),
+    );
+  }
+
   void _onSearchChanged() {
     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
@@ -114,22 +231,15 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     });
   }
 
-  void _ouvrirSelecteurPays() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _PaysBottomSheet(
-        selected: _selectedPays,
-        onSelect: (p) {
-          setState(() => _selectedPays = p);
-          Navigator.of(context).pop();
-        },
-      ),
-    );
-  }
-
   void _suivant() {
+    if (_selectedCountry == null) {
+      showErrorToast(context, 'Veuillez sélectionner un pays.');
+      return;
+    }
+    if (_selectedShippingType == null) {
+      showErrorToast(context, 'Veuillez choisir un type de transport.');
+      return;
+    }
     if (_formKeyStep1.currentState!.validate()) {
       setState(() => _currentStep = 2);
     }
@@ -152,16 +262,18 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     if (!_formKeyStep2.currentState!.validate()) return;
 
     final double poids = double.tryParse(_poidsController.text) ?? 0.0;
-    final double total = poids * (_selectedPays?.prixParKg ?? 0.0);
+    final double total = _totalEstime;
 
     try {
       final reference = await sl<EnvoyerColis>()(EnvoyerColisParams(
         recepteurId: _selectedDestinataire!.id,
         poids: poids,
         prix: total,
-        destination: _selectedPays!.nom,
+        destination: _selectedCountry!.name,
         typeColis: _typeController.text,
-        description: _descriptionController.text,
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
       ));
       if (mounted) {
         final nomRecepteur =
@@ -175,7 +287,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           'Envoyé à $nomRecepteur avec succès.',
           ToastificationType.success,
         );
-        // Rafraîchir le BLoC si disponible dans le contexte
         if (context.mounted) {
           try {
             context.read<ColisBloc>().add(LoadColisEnvoyes());
@@ -221,7 +332,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     );
   }
 
-  // ── AppBar custom ─────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       color: Colors.white,
@@ -229,8 +339,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(
-                Icons.arrow_back_ios_new_rounded, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             color: AppColor.kGrayscaleDark100,
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -249,7 +358,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     );
   }
 
-  // ── Stepper ───────────────────────────────────────────────────────────────
   Widget _buildStepper() {
     return Container(
       color: Colors.white,
@@ -320,16 +428,14 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           _label('Pays de destination'),
           const SizedBox(height: 8),
           _PaysSelector(
-            selected: _selectedPays,
+            selected: _selectedCountry,
+            isLoading: _isLoadingCountries,
             onTap: _ouvrirSelecteurPays,
-            hasError: false,
           ),
           const SizedBox(height: 6),
-          // Validation invisible pour le pays
-          FormField<_Pays>(
-            validator: (_) => _selectedPays == null
-                ? 'Veuillez sélectionner un pays'
-                : null,
+          FormField<CountryItem>(
+            validator: (_) =>
+                _selectedCountry == null ? 'Veuillez sélectionner un pays' : null,
             builder: (field) => field.hasError
                 ? Padding(
                     padding: const EdgeInsets.only(left: 12),
@@ -343,6 +449,26 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                   )
                 : const SizedBox.shrink(),
           ),
+
+          // Type de transport
+          if (_selectedCountry != null) ...[
+            const SizedBox(height: 20),
+            _label('Type de transport'),
+            const SizedBox(height: 8),
+            if (_isLoadingPricing)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            else
+              _buildShippingTypeSelector(),
+          ],
 
           const SizedBox(height: 20),
 
@@ -402,8 +528,8 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
 
           const SizedBox(height: 20),
 
-          // Prix estimé (affichage dynamique)
-          if (_selectedPays != null) ...[
+          // Prix estimé
+          if (_selectedCountry != null && _selectedShippingType != null) ...[
             _buildPrixEstime(),
             const SizedBox(height: 20),
           ],
@@ -429,9 +555,96 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     );
   }
 
+  Widget _buildShippingTypeSelector() {
+    final types = _countryPricing?.shippingPrices
+            .map((p) => p.type)
+            .toSet()
+            .toList() ??
+        [];
+
+    if (types.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          'Aucun tarif disponible pour ce pays.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: const Color(0xFF92400E),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: types.map((type) {
+        final isSelected = _selectedShippingType == type;
+        final icon = type == 'aérien'
+            ? Icons.flight_rounded
+            : Icons.directions_boat_rounded;
+        // Affiche le pricePerKg du premier tarif trouvé (indicatif)
+        final pricePerKg = _countryPricing!.shippingPrices
+            .firstWhere((p) => p.type == type)
+            .pricePerKg;
+
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _selectedShippingType = type),
+            child: Container(
+              margin: EdgeInsets.only(right: type == types.first && types.length > 1 ? 8 : 0),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColor.kAccentSoft : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isSelected ? AppColor.kPrimary : AppColor.kLine,
+                  width: isSelected ? 2 : 1.5,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(icon,
+                      size: 24,
+                      color: isSelected
+                          ? AppColor.kPrimary
+                          : AppColor.kGrayscale40),
+                  const SizedBox(height: 6),
+                  Text(
+                    type[0].toUpperCase() + type.substring(1),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? AppColor.kPrimary
+                          : AppColor.kGrayscaleDark100,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${pricePerKg.toStringAsFixed(0)} €/kg',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: isSelected
+                          ? AppColor.kPrimary
+                          : AppColor.kGrayscale40,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildPrixEstime() {
     final poids = double.tryParse(_poidsController.text) ?? 0.0;
-    final prix = poids * (_selectedPays?.prixParKg ?? 0.0);
+    final shipping = poids * _pricePerKg;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -444,14 +657,14 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
               size: 16, color: AppColor.kPrimary),
           const SizedBox(width: 8),
           Text(
-            'Prix estimé : ',
+            'Prix transport estimé : ',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 13,
               color: AppColor.kGrayscale60,
             ),
           ),
           Text(
-            '${prix.toStringAsFixed(2)} €',
+            '${shipping.toStringAsFixed(2)} €',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w800,
@@ -460,7 +673,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           ),
           const Spacer(),
           Text(
-            '${_selectedPays!.prixParKg.toStringAsFixed(0)} €/kg',
+            '${_pricePerKg.toStringAsFixed(0)} €/kg',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11,
               color: AppColor.kGrayscale40,
@@ -473,16 +686,12 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
 
   // ── Step 2 ────────────────────────────────────────────────────────────────
   Widget _buildStep2Form() {
-    final poids = double.tryParse(_poidsController.text) ?? 0.0;
-    final total = poids * (_selectedPays?.prixParKg ?? 0.0);
-
     return Form(
       key: _formKeyStep2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Récapitulatif premium
-          _buildRecap(poids, total),
+          _buildRecap(),
 
           const SizedBox(height: 24),
 
@@ -503,7 +712,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                 : null,
           ),
 
-          // Loader
           if (_isLoadingRecherche)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -516,7 +724,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
               ),
             ),
 
-          // Résultats
           if (_resultatsRecherche.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(top: 8),
@@ -578,8 +785,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     '${c.nom} ${c.prenom}',
@@ -613,11 +819,31 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
               ),
             ),
 
-          // Destinataire sélectionné
           if (_selectedDestinataire != null) ...[
             const SizedBox(height: 12),
             _buildDestinataireCard(),
           ],
+
+          const SizedBox(height: 24),
+
+          // ── Services optionnels ──────────────────────────────────────────
+          _label('Services additionnels'),
+          const SizedBox(height: 12),
+          _buildServiceCheckbox(
+            question:
+                'Voulez-vous qu\'on vienne récupérer le colis ?',
+            prix: _pickupPriceDisplay,
+            value: _needsPickup,
+            onChanged: (v) => setState(() => _needsPickup = v ?? false),
+          ),
+          const SizedBox(height: 12),
+          _buildServiceCheckbox(
+            question:
+                'Voulez-vous une livraison à destination ?',
+            prix: _deliveryPriceDisplay,
+            value: _needsDelivery,
+            onChanged: (v) => setState(() => _needsDelivery = v ?? false),
+          ),
 
           const SizedBox(height: 20),
         ],
@@ -625,7 +851,77 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     );
   }
 
-  Widget _buildRecap(double poids, double total) {
+  Widget _buildServiceCheckbox({
+    required String question,
+    required double prix,
+    required bool value,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: value ? AppColor.kAccentSoft : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: value ? AppColor.kPrimary : AppColor.kLine,
+            width: value ? 2 : 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    question,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: value
+                          ? AppColor.kPrimary
+                          : AppColor.kGrayscaleDark100,
+                    ),
+                  ),
+                  if (prix > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      prix == 0
+                          ? 'Tarif non disponible'
+                          : '+${prix.toStringAsFixed(2)} €',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: value
+                            ? AppColor.kPrimary
+                            : AppColor.kGrayscale40,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Checkbox(
+              value: value,
+              onChanged: onChanged,
+              activeColor: AppColor.kPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecap() {
+    final poids = double.tryParse(_poidsController.text) ?? 0.0;
+    final shipping = poids * _pricePerKg;
+    final total = _totalEstime;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -642,7 +938,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         borderRadius: BorderRadius.circular(18),
         child: Column(
           children: [
-            // Header
             Container(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
               color: AppColor.kGrayscaleDark100,
@@ -662,7 +957,6 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                 ],
               ),
             ),
-            // Lignes
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -670,10 +964,20 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                   _recapRow(
                     Icons.flight_takeoff_rounded,
                     'Destination',
-                    _selectedPays != null
-                        ? '${_selectedPays!.drapeau}  ${_selectedPays!.nom}'
-                        : '—',
+                    _selectedCountry?.name ?? '—',
                     const Color(0xFF2563EB),
+                  ),
+                  const SizedBox(height: 12),
+                  _recapRow(
+                    _selectedShippingType == 'aérien'
+                        ? Icons.flight_rounded
+                        : Icons.directions_boat_rounded,
+                    'Transport',
+                    _selectedShippingType != null
+                        ? (_selectedShippingType![0].toUpperCase() +
+                            _selectedShippingType!.substring(1))
+                        : '—',
+                    const Color(0xFF7C3AED),
                   ),
                   const SizedBox(height: 12),
                   _recapRow(
@@ -682,7 +986,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                     _typeController.text.isNotEmpty
                         ? _typeController.text
                         : '—',
-                    const Color(0xFF7C3AED),
+                    const Color(0xFF059669),
                   ),
                   const SizedBox(height: 12),
                   _recapRow(
@@ -691,6 +995,31 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                     '${poids.toStringAsFixed(2)} kg',
                     AppColor.kGrayscale60,
                   ),
+                  const SizedBox(height: 12),
+                  _recapRow(
+                    Icons.local_shipping_outlined,
+                    'Frais transport',
+                    '${shipping.toStringAsFixed(2)} €',
+                    AppColor.kGrayscale60,
+                  ),
+                  if (_needsPickup && _pickupPrice > 0) ...[
+                    const SizedBox(height: 8),
+                    _recapRow(
+                      Icons.home_outlined,
+                      'Récupération',
+                      '+${_pickupPrice.toStringAsFixed(2)} €',
+                      const Color(0xFFD97706),
+                    ),
+                  ],
+                  if (_needsDelivery && _deliveryPrice > 0) ...[
+                    const SizedBox(height: 8),
+                    _recapRow(
+                      Icons.delivery_dining_outlined,
+                      'Livraison',
+                      '+${_deliveryPrice.toStringAsFixed(2)} €',
+                      const Color(0xFFD97706),
+                    ),
+                  ],
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Divider(height: 1, color: Colors.grey.shade100),
@@ -849,10 +1178,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                 width: 54,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColor.kLine,
-                    width: 1.5,
-                  ),
+                  border: Border.all(color: AppColor.kLine, width: 1.5),
                 ),
                 child: const Icon(
                   Icons.arrow_back_ios_new_rounded,
@@ -967,12 +1293,10 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
       suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
       filled: true,
       fillColor: focused ? AppColor.kAccentSoft : Colors.white,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide:
-            const BorderSide(color: AppColor.kLine, width: 1.5),
+        borderSide: const BorderSide(color: AppColor.kLine, width: 1.5),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -980,13 +1304,11 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide:
-            const BorderSide(color: Colors.redAccent, width: 1.5),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide:
-            const BorderSide(color: Colors.redAccent, width: 2),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
       ),
       errorStyle: GoogleFonts.plusJakartaSans(
         fontSize: 12,
@@ -996,17 +1318,17 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   }
 }
 
-// ── Sélecteur pays (tap-to-open) ─────────────────────────────────────────────
+// ── Sélecteur pays ────────────────────────────────────────────────────────────
 
 class _PaysSelector extends StatelessWidget {
-  final _Pays? selected;
+  final CountryItem? selected;
+  final bool isLoading;
   final VoidCallback onTap;
-  final bool hasError;
 
   const _PaysSelector({
     required this.selected,
+    required this.isLoading,
     required this.onTap,
-    required this.hasError,
   });
 
   @override
@@ -1020,11 +1342,7 @@ class _PaysSelector extends StatelessWidget {
           color: selected != null ? AppColor.kAccentSoft : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: hasError
-                ? Colors.redAccent
-                : selected != null
-                    ? AppColor.kPrimary
-                    : AppColor.kLine,
+            color: selected != null ? AppColor.kPrimary : AppColor.kLine,
             width: selected != null ? 2 : 1.5,
           ),
         ),
@@ -1039,50 +1357,29 @@ class _PaysSelector extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: selected == null
-                  ? Text(
-                      'Sélectionnez un pays',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        color: AppColor.kGrayscale20,
-                        fontWeight: FontWeight.w400,
-                      ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Row(
-                      children: [
-                        Text(
-                          selected!.drapeau,
-                          style: const TextStyle(fontSize: 22),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          selected!.nom,
+                  : selected == null
+                      ? Text(
+                          'Sélectionnez un pays',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            color: AppColor.kGrayscale20,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        )
+                      : Text(
+                          selected!.name,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: AppColor.kGrayscaleDark100,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColor.kPrimary
-                                .withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${selected!.prixParKg.toStringAsFixed(0)} €/kg',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppColor.kPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
             ),
             Icon(
               Icons.keyboard_arrow_down_rounded,
@@ -1097,13 +1394,18 @@ class _PaysSelector extends StatelessWidget {
   }
 }
 
-// ── Bottom sheet sélection pays ───────────────────────────────────────────────
+// ── Bottom sheet pays ─────────────────────────────────────────────────────────
 
 class _PaysBottomSheet extends StatelessWidget {
-  final _Pays? selected;
-  final void Function(_Pays) onSelect;
+  final List<CountryItem> countries;
+  final CountryItem? selected;
+  final void Function(CountryItem) onSelect;
 
-  const _PaysBottomSheet({required this.selected, required this.onSelect});
+  const _PaysBottomSheet({
+    required this.countries,
+    required this.selected,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1115,7 +1417,6 @@ class _PaysBottomSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
           Container(
             margin: const EdgeInsets.only(top: 12, bottom: 8),
             width: 36,
@@ -1141,13 +1442,24 @@ class _PaysBottomSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          ..._listePays.map((pays) => _PaysItem(
-                pays: pays,
-                isSelected: selected?.nom == pays.nom,
-                onTap: () => onSelect(pays),
-              )),
-          SizedBox(
-              height: MediaQuery.of(context).padding.bottom + 16),
+          if (countries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Aucun pays disponible.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: const Color(0xFF9CA3AF),
+                ),
+              ),
+            )
+          else
+            ...countries.map((c) => _PaysItem(
+                  country: c,
+                  isSelected: selected?.id == c.id,
+                  onTap: () => onSelect(c),
+                )),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
         ],
       ),
     );
@@ -1155,12 +1467,12 @@ class _PaysBottomSheet extends StatelessWidget {
 }
 
 class _PaysItem extends StatelessWidget {
-  final _Pays pays;
+  final CountryItem country;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _PaysItem({
-    required this.pays,
+    required this.country,
     required this.isSelected,
     required this.onTap,
   });
@@ -1176,40 +1488,47 @@ class _PaysItem extends StatelessWidget {
           color: isSelected ? AppColor.kAccentSoft : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color:
-                isSelected ? AppColor.kPrimary : const Color(0xFFF3F4F6),
+            color: isSelected ? AppColor.kPrimary : const Color(0xFFF3F4F6),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Row(
           children: [
-            Text(pays.drapeau, style: const TextStyle(fontSize: 28)),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColor.kPrimary.withValues(alpha: 0.1)
+                    : const Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  country.code.length >= 2
+                      ? country.code.substring(0, 2)
+                      : country.code,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected
+                        ? AppColor.kPrimary
+                        : AppColor.kGrayscale60,
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    pays.nom,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected
-                          ? AppColor.kPrimary
-                          : const Color(0xFF1E1E1E),
-                    ),
-                  ),
-                  Text(
-                    '${pays.prixParKg.toStringAsFixed(0)} € par kg',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      color: isSelected
-                          ? AppColor.kPrimary
-                          : const Color(0xFF9CA3AF),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
+              child: Text(
+                country.name,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected
+                      ? AppColor.kPrimary
+                      : const Color(0xFF1E1E1E),
+                ),
               ),
             ),
             if (isSelected)

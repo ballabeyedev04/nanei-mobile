@@ -1,8 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../injection_container.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/services/token_service.dart';
+import '../../../../core/config/env.dart';
+import '../../../auth/domain/entities/user.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -80,8 +83,33 @@ class _SplashPageState extends State<SplashPage>
       final tokenService = sl<TokenService>();
       final isAuth = await tokenService.isAuthenticated;
       if (!mounted) return;
+      if (!isAuth) {
+        Navigator.of(context).pushReplacementNamed(AppRouter.loginRoute);
+        return;
+      }
+      // Token valide — récupérer le profil pour afficher nom/email
+      User? user;
+      try {
+        final res = await sl<Dio>().get(Env.accountMe);
+        final data = res.data['utilisateur'] as Map<String, dynamic>?;
+        if (data != null) {
+          user = User(
+            id: data['id']?.toString() ?? '',
+            nom: data['nom']?.toString() ?? '',
+            prenom: data['prenom']?.toString() ?? '',
+            email: data['email']?.toString() ?? '',
+            mot_de_passe: '',
+            adresse: data['adresse']?.toString() ?? '',
+            telephone: data['telephone']?.toString() ?? '',
+          );
+        }
+      } catch (_) {
+        // /me a échoué mais le token est valide — on continue sans user
+      }
+      if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(
-        isAuth ? AppRouter.clientRoute : AppRouter.loginRoute,
+        AppRouter.clientRoute,
+        arguments: user,
       );
     } catch (_) {
       if (!mounted) return;

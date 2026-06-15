@@ -27,6 +27,8 @@ import 'features/home/domain/usecases/get_statistiques_colis.dart';
 import 'features/home/domain/usecases/get_notifications.dart';
 import 'features/home/domain/usecases/marquer_notification_lue.dart';
 import 'features/home/domain/usecases/rechercher_client.dart';
+import 'features/home/domain/usecases/get_countries.dart';
+import 'features/home/domain/usecases/get_pricing_by_country.dart';
 import 'features/home/presentation/bloc/colis_bloc.dart';
 
 final sl = GetIt.instance;
@@ -120,6 +122,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => RechercherClient(sl()));
   sl.registerLazySingleton(() => GetNotifications(sl()));
   sl.registerLazySingleton(() => MarquerNotificationLue(sl()));
+  sl.registerLazySingleton(() => GetCountries(sl()));
+  sl.registerLazySingleton(() => GetPricingByCountry(sl()));
   sl.registerFactory(() => ColisBloc(
         getColisEnvoyes: sl(),
         getColisRecus: sl(),

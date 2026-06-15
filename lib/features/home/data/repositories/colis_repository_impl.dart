@@ -1,6 +1,7 @@
 import '../../domain/entities/colis.dart';
 import '../../domain/entities/client_recherche.dart';
 import '../../domain/entities/notification_model.dart';
+import '../../domain/entities/country_pricing.dart';
 import '../../domain/repositories/colis_repository.dart';
 import '../datasources/colis_remote_datasource.dart';
 
@@ -49,4 +50,12 @@ class ColisRepositoryImpl implements ColisRepository {
   @override
   Future<void> marquerNotificationLue(String id) =>
       remoteDataSource.marquerNotificationLue(id);
+
+  @override
+  Future<List<CountryItem>> getCountries() =>
+      remoteDataSource.getCountries();
+
+  @override
+  Future<CountryPricing> getPricingByCountry(String countryId) =>
+      remoteDataSource.getPricingByCountry(countryId);
 }
