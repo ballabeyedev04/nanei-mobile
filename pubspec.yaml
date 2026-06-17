@@ -115,4 +115,6 @@ flutter:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/icons/icon-nanei.jpg"
+  image_path: "assets/icons/logo.png"
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icons/logo.png"
