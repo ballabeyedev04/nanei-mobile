@@ -5,6 +5,79 @@ import 'app_color.dart';
 class AppTheme {
   AppTheme._();
 
+  static ThemeData dark() {
+    final base = ThemeData.dark(useMaterial3: true);
+    const primary = AppColor.kPrimary;
+
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: primary,
+      primary: primary,
+      brightness: Brightness.dark,
+      surface: const Color(0xFF1A1A1A),
+    );
+
+    return base.copyWith(
+      colorScheme: colorScheme,
+      primaryColor: primary,
+      scaffoldBackgroundColor: const Color(0xFF1A1A1A),
+      appBarTheme: AppBarTheme(
+        backgroundColor: const Color(0xFF242424),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        titleTextStyle: GoogleFonts.plusJakartaSans(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          textStyle: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+          elevation: 5,
+          padding:
+              const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF2C2C2C),
+        hintStyle: GoogleFonts.plusJakartaSans(
+          color: const Color(0xFF6B7280),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        labelStyle: GoogleFonts.plusJakartaSans(
+          color: Colors.white70,
+          fontWeight: FontWeight.w500,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF3A3A3A)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primary, width: 1.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF3A3A3A)),
+        ),
+      ),
+      textTheme: GoogleFonts.plusJakartaSansTextTheme(base.textTheme).apply(
+        bodyColor: Colors.white,
+        displayColor: Colors.white,
+      ),
+    );
+  }
+
   static ThemeData light() {
     final base = ThemeData.light(useMaterial3: true);
 

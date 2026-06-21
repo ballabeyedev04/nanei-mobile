@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,19 +27,25 @@ class _RegisterPageState extends State<RegisterPage>
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   final _firstNameFocus = FocusNode();
   final _lastNameFocus = FocusNode();
   final _emailFocus = FocusNode();
   final _addressFocus = FocusNode();
   final _passwordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
 
   bool _firstNameFocused = false;
   bool _lastNameFocused = false;
   bool _emailFocused = false;
   bool _addressFocused = false;
   bool _passwordFocused = false;
+  bool _confirmPasswordFocused = false;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _showSlowWarning = false;
+  Timer? _slowTimer;
 
   final _formKey = GlobalKey<FormState>();
   String? _completePhoneNumber;
@@ -65,6 +72,7 @@ class _RegisterPageState extends State<RegisterPage>
     listenFocus(_emailFocus, () => _emailFocused = _emailFocus.hasFocus);
     listenFocus(_addressFocus, () => _addressFocused = _addressFocus.hasFocus);
     listenFocus(_passwordFocus, () => _passwordFocused = _passwordFocus.hasFocus);
+    listenFocus(_confirmPasswordFocus, () => _confirmPasswordFocused = _confirmPasswordFocus.hasFocus);
   }
 
   @override
@@ -75,13 +83,29 @@ class _RegisterPageState extends State<RegisterPage>
     _phoneController.dispose();
     _addressController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _firstNameFocus.dispose();
     _lastNameFocus.dispose();
     _emailFocus.dispose();
     _addressFocus.dispose();
     _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
     _animController.dispose();
+    _slowTimer?.cancel();
     super.dispose();
+  }
+
+  void _startSlowTimer() {
+    _slowTimer?.cancel();
+    _showSlowWarning = false;
+    _slowTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _showSlowWarning = true);
+    });
+  }
+
+  void _stopSlowTimer() {
+    _slowTimer?.cancel();
+    if (mounted) setState(() => _showSlowWarning = false);
   }
 
   void _submitRegistration() {
@@ -111,8 +135,14 @@ class _RegisterPageState extends State<RegisterPage>
       body: BlocConsumer<AuthBloc, AuthState>(
         listenWhen: (previous, current) => previous != current,
         listener: (context, state) {
+          if (state is AuthLoading) {
+            _startSlowTimer();
+          } else {
+            _stopSlowTimer();
+          }
           if (state is AuthSuccess) {
             FocusScope.of(context).unfocus();
+            context.read<AuthBloc>().add(ResetAuthState());
             showToast(
               context,
               'Inscription réussie',
@@ -123,7 +153,6 @@ class _RegisterPageState extends State<RegisterPage>
               AppRouter.loginRoute,
               (route) => false,
             );
-            context.read<AuthBloc>().add(ResetAuthState());
           } else if (state is AuthFailure) {
             showToast(
               context,
@@ -138,6 +167,47 @@ class _RegisterPageState extends State<RegisterPage>
           return Stack(
             children: [
               _buildDecorativeBackground(size),
+              if (isLoading && _showSlowWarning)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.orange.shade600,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Démarrage du serveur en cours, patientez quelques secondes...',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: Colors.orange.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               SafeArea(
                 child: FadeTransition(
                   opacity: _fadeAnim,
@@ -377,6 +447,10 @@ class _RegisterPageState extends State<RegisterPage>
           _buildPasswordField(),
           const SizedBox(height: 20),
 
+          // Confirmer mot de passe
+          _buildConfirmPasswordField(),
+          const SizedBox(height: 20),
+
           // Adresse
           _buildField(
             label: 'Adresse complète',
@@ -530,7 +604,7 @@ class _RegisterPageState extends State<RegisterPage>
           obscureText: _obscurePassword,
           textInputAction: TextInputAction.next,
           onFieldSubmitted: (_) =>
-              FocusScope.of(context).requestFocus(_addressFocus),
+              FocusScope.of(context).requestFocus(_confirmPasswordFocus),
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -558,6 +632,54 @@ class _RegisterPageState extends State<RegisterPage>
               ),
               onPressed: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
+              splashRadius: 20,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Champ confirmer mot de passe ───────────────────────────────────────────
+  Widget _buildConfirmPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel('Confirmer le mot de passe'),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _confirmPasswordController,
+          focusNode: _confirmPasswordFocus,
+          obscureText: _obscureConfirmPassword,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _submitRegistration(),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColor.kGrayscaleDark100,
+          ),
+          validator: (v) {
+            if (v == null || v.isEmpty) return 'Ce champ est requis';
+            if (v != _passwordController.text) return 'Les mots de passe ne correspondent pas';
+            return null;
+          },
+          decoration: _inputDecoration(
+            hint: 'Répétez votre mot de passe',
+            icon: Icons.lock_outline_rounded,
+            isFocused: _confirmPasswordFocused,
+          ).copyWith(
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirmPassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                size: 20,
+                color: _confirmPasswordFocused
+                    ? AppColor.kPrimary
+                    : AppColor.kGrayscale40,
+              ),
+              onPressed: () =>
+                  setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
               splashRadius: 20,
             ),
           ),

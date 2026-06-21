@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nanei/core/utils/app_logger.dart';
 import '../../domain/entities/notification_model.dart';
 import '../../domain/usecases/get_colis_envoyes.dart';
 import '../../domain/usecases/get_colis_recus.dart';
@@ -45,7 +46,8 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
       final colis = await getColisEnvoyes();
       emit(state.copyWith(
           colisEnvoyes: colis, loadingEnvoyes: false));
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onLoadColisEnvoyes', e, st);
       emit(state.copyWith(
           loadingEnvoyes: false, error: e.toString()));
     }
@@ -57,7 +59,8 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
     try {
       final colis = await getColisRecus();
       emit(state.copyWith(colisRecus: colis, loadingRecus: false));
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onLoadColisRecus', e, st);
       emit(state.copyWith(
           loadingRecus: false, error: e.toString()));
     }
@@ -73,7 +76,8 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
         nbRecus: stats['recus'] ?? 0,
         loadingStats: false,
       ));
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onLoadStatistiques', e, st);
       emit(state.copyWith(loadingStats: false, error: e.toString()));
     }
   }
@@ -83,6 +87,7 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
     emit(state.copyWith(sendingColis: true, colisEnvoye: false, error: null));
     try {
       final reference = await envoyerColis(event.params);
+      AppLogger.colisEvent('Colis créé', reference: reference);
       emit(state.copyWith(
         sendingColis: false,
         colisEnvoye: true,
@@ -90,7 +95,9 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
       ));
       // Recharger automatiquement la liste après envoi
       add(LoadColisEnvoyes());
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onEnvoyerColis', e, st);
+      AppLogger.warning('État erreur: ColisBloc envoi colis', e.toString());
       emit(state.copyWith(
           sendingColis: false, error: e.toString()));
     }
@@ -103,7 +110,8 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
       final results = await rechercherClient(event.query);
       emit(state.copyWith(
           resultatsRecherche: results, searchingClient: false));
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onRechercherClient', e, st);
       emit(state.copyWith(
           searchingClient: false, resultatsRecherche: []));
     }

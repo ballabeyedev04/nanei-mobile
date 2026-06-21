@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../../core/config/env.dart';
 import '../../../../core/services/token_service.dart';
+import '../../../../core/utils/app_logger.dart';
 import '../../../../injection_container.dart';
 import '../../domain/usecases/login_user.dart';
 import '../../domain/usecases/register_user.dart';
@@ -37,8 +38,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
 
     result.fold(
-          (failure) => emit(AuthFailure(message: failure.errorMessage)),
-          (user) => emit(AuthSuccess(user: user)),
+          (failure) {
+            AppLogger.warning('État erreur: AuthBloc', failure.errorMessage);
+            emit(AuthFailure(message: failure.errorMessage));
+          },
+          (user) {
+            AppLogger.authEvent('Connexion réussie', userId: user.id, email: user.email);
+            emit(AuthSuccess(user: user));
+          },
     );
   }
 
@@ -58,8 +65,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
 
     result.fold(
-          (failure) => emit(AuthFailure(message: failure.errorMessage)),
-          (user) => emit(AuthSuccess(user: user)),
+          (failure) {
+            AppLogger.warning('État erreur: AuthBloc inscription', failure.errorMessage);
+            emit(AuthFailure(message: failure.errorMessage));
+          },
+          (user) {
+            AppLogger.authEvent('Inscription réussie', userId: user.id, email: user.email);
+            emit(AuthSuccess(user: user));
+          },
     );
   }
 
@@ -90,8 +103,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await storage.delete(key: 'user_id');
       await storage.delete(key: 'refresh_token');
 
+      AppLogger.authEvent('Déconnexion réussie');
       emit(AuthInitial());
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('Erreur dans AuthBloc._onLogoutRequested', e, st);
       emit(AuthFailure(message: 'Erreur lors de la déconnexion : $e'));
     }
   }

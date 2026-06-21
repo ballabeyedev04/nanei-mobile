@@ -12,6 +12,9 @@ import 'home_page.dart';
 import 'reception_envoi_page.dart';
 import 'suivi_page.dart';
 import 'notifications_page.dart';
+import 'package:nanei/features/paiement/presentation/bloc/paiement_bloc.dart';
+import 'package:nanei/features/paiement/presentation/bloc/paiement_event.dart';
+import 'package:nanei/features/paiement/presentation/pages/paiements_page.dart';
 
 class MainClientPage extends StatefulWidget {
   final User? user;
@@ -31,6 +34,7 @@ class _MainClientPageState extends State<MainClientPage>
     _NavItem(icon: Icons.all_inbox_rounded, label: 'Mes colis'),
     _NavItem(icon: Icons.timeline_rounded, label: 'Suivi'),
     _NavItem(icon: Icons.notifications_rounded, label: 'Notifs'),
+    _NavItem(icon: Icons.credit_card_rounded, label: 'Payer'),
   ];
 
   @override
@@ -77,7 +81,11 @@ class _MainClientPageState extends State<MainClientPage>
           SuiviPage(user: widget.user),
           NotificationsPage(
             user: widget.user,
-            onVoirColis: () => _onTap(1), // → onglet "Mes colis"
+            onVoirColis: () => _onTap(1),
+          ),
+          BlocProvider(
+            create: (_) => sl<PaiementBloc>()..add(LoadMesPaiements()),
+            child: const PaiementsPage(),
           ),
         ];
         return Scaffold(

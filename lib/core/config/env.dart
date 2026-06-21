@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:nanei/core/utils/app_logger.dart';
 
 /// Résolution 3-niveaux : dart-define → .env → fallback
 class Env {
@@ -15,9 +15,7 @@ class Env {
     if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
 
     // 3. Fallback codé en dur
-    if (kDebugMode) {
-      debugPrint('[Env] $key non défini → fallback utilisé');
-    }
+    AppLogger.debug('[Env] $key non défini → fallback utilisé');
     return fallback;
   }
 
@@ -55,4 +53,33 @@ class Env {
 
   // ── Support ───────────────────────────────────────────────────────────────
   static String get messagesEnvoyer => '/messages';
+
+  // ── FCM ───────────────────────────────────────────────────────────────────
+  static String get accountFcmToken => '/nanei/account/fcm-token';
+
+  // ── Contacts ─────────────────────────────────────────────────────────────
+  static String get contacts                    => '/nanei/contacts';
+  static String contactById(String id)          => '/nanei/contacts/$id';
+
+  // ── Réclamations ─────────────────────────────────────────────────────────
+  static String get reclamations                => '/nanei/reclamations';
+  static String reclamationById(String id)      => '/nanei/reclamations/$id';
+
+  // ── Avis ──────────────────────────────────────────────────────────────────
+  static String get avis                        => '/nanei/avis';
+
+  // ── Preuve de livraison ───────────────────────────────────────────────────
+  static String preuveLivraison(String colisId) => '/nanei/colis/$colisId/preuve';
+
+  // ── Étiquette colis ───────────────────────────────────────────────────────
+  static String etiquetteColis(String colisId) => '/nanei/etiquettes/$colisId';
+
+  // ── Compte ───────────────────────────────────────────────────────────────
+  static String get accountDelete               => '/nanei/account';
+
+  // ── Reset Password ────────────────────────────────────────────────────────
+  static String resetPassword(String token)     => '/auth/reset-password/$token';
+
+  // ── Suivi public ─────────────────────────────────────────────────────────
+  static String suiviPublic(String reference)   => '$baseUrl/nanei/suivi/$reference';
 }

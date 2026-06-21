@@ -1,10 +1,17 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nanei/core/utils/app_logger.dart';
+import 'package:nanei/core/widgets/talker_debug_screen.dart';
 import 'package:nanei/core/config/env.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/theme/theme_notifier.dart';
 import 'package:nanei/core/widgets/app_toast.dart';
+import 'package:nanei/core/routes/app_router.dart';
+import 'package:nanei/core/services/token_service.dart';
 import 'package:nanei/injection_container.dart';
+import 'package:provider/provider.dart';
 
 class ProfilsPage extends StatefulWidget {
   const ProfilsPage({super.key});
@@ -50,7 +57,8 @@ class _ProfilsPageState extends State<ProfilsPage>
         _loading = false;
       });
       _fadeCtrl.forward(from: 0);
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ProfilsPage._loadMe', e, st);
       setState(() {
         _error = 'Impossible de charger le profil.';
         _loading = false;
@@ -116,6 +124,129 @@ class _ProfilsPageState extends State<ProfilsPage>
                         sub: 'Sécuriser votre compte',
                         onTap: _showPasswordSheet,
                       ),
+                      const SizedBox(height: 20),
+                      _buildSectionLabel('Préférences'),
+                      const SizedBox(height: 12),
+                      // Dark mode
+                      Consumer<ThemeNotifier>(
+                        builder: (context, themeNotifier, _) {
+                          return _buildSwitchTile(
+                            icon: Icons.dark_mode_rounded,
+                            iconColor: const Color(0xFF1E293B),
+                            iconBg: const Color(0xFFE2E8F0),
+                            label: 'Mode sombre',
+                            sub: themeNotifier.isDark ? 'Activé' : 'Désactivé',
+                            value: themeNotifier.isDark,
+                            onChanged: (_) => themeNotifier.toggle(),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      // Contacts
+                      _buildActionTile(
+                        icon: Icons.contacts_rounded,
+                        iconColor: const Color(0xFF0EA5E9),
+                        iconBg: const Color(0xFFE0F2FE),
+                        label: 'Mes contacts favoris',
+                        sub: 'Gérer vos destinataires fréquents',
+                        onTap: () => Navigator.of(context)
+                            .pushNamed(AppRouter.contactsRoute),
+                      ),
+                      const SizedBox(height: 10),
+                      // Réclamations
+                      _buildActionTile(
+                        icon: Icons.report_problem_rounded,
+                        iconColor: const Color(0xFFEF4444),
+                        iconBg: const Color(0xFFFEE2E2),
+                        label: 'Mes réclamations',
+                        sub: 'Signaler un problème sur un colis',
+                        onTap: () => Navigator.of(context)
+                            .pushNamed(AppRouter.reclamationsRoute),
+                      ),
+                      const SizedBox(height: 10),
+                      // Avis
+                      _buildActionTile(
+                        icon: Icons.star_rounded,
+                        iconColor: const Color(0xFFFFB800),
+                        iconBg: const Color(0xFFFFF8E1),
+                        label: 'Mes avis',
+                        sub: 'Consulter vos évaluations de livraisons',
+                        onTap: () => Navigator.of(context)
+                            .pushNamed(AppRouter.mesAvisRoute),
+                      ),
+                      const SizedBox(height: 28),
+                      if (kDebugMode) ...[
+                        _buildSectionLabel('Développement'),
+                        const SizedBox(height: 12),
+                        _buildActionTile(
+                          icon: Icons.bug_report_rounded,
+                          iconColor: const Color(0xFF16A34A),
+                          iconBg: const Color(0xFFDCFCE7),
+                          label: 'Logs (DEBUG)',
+                          sub: 'Consulter les logs de l\'application',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const TalkerDebugScreen(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                      ],
+                      _buildSectionLabel('Zone dangereuse'),
+                      const SizedBox(height: 12),
+                      // Supprimer le compte
+                      Material(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          onTap: _confirmerSuppression,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFE4E6),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(
+                                      Icons.delete_forever_rounded,
+                                      size: 22,
+                                      color: Color(0xFFEF4444)),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Supprimer mon compte',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFFEF4444),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Action irréversible',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          color: const Color(0xFFF87171),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -124,6 +255,52 @@ class _ProfilsPageState extends State<ProfilsPage>
         ],
       ),
     );
+  }
+
+  Future<void> _confirmerSuppression() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Supprimer mon compte ?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          'Action irréversible. Vos données seront anonymisées. Cette opération ne peut pas être annulée.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Annuler',
+                style: GoogleFonts.plusJakartaSans(color: AppColor.kGrayscale40)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Supprimer',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await sl<Dio>().delete(Env.accountDelete);
+      await sl<TokenService>().clearToken();
+      if (!mounted) return;
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil(AppRouter.loginRoute, (_) => false);
+    } catch (e) {
+      if (!mounted) return;
+      showErrorToast(context, 'Erreur lors de la suppression du compte.');
+    }
   }
 
   Widget _buildSectionLabel(String label) => Align(
@@ -467,6 +644,68 @@ class _ProfilsPageState extends State<ProfilsPage>
     );
   }
 
+  // ── Switch tile (dark mode) ────────────────────────────────────────────────
+
+  Widget _buildSwitchTile({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String label,
+    required String sub,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 22, color: iconColor),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColor.kGrayscaleDark100)),
+                const SizedBox(height: 2),
+                Text(sub,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12, color: AppColor.kGrayscale40)),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: const Color(0xFFFF7A00),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Erreur ──────────────────────────────────────────────────────────────────
 
   Widget _buildError() {
@@ -703,8 +942,8 @@ class _PasswordSheetState extends State<_PasswordSheet> {
     setState(() => _loading = true);
     try {
       await widget.onSave({
-        'ancienMotDePasse': _oldCtrl.text,
-        'nouveauMotDePasse': _newCtrl.text,
+        'ancienPassword': _oldCtrl.text,
+        'nouveauPassword': _newCtrl.text,
       });
       if (mounted) {
         Navigator.of(context).pop();
@@ -747,8 +986,8 @@ class _PasswordSheetState extends State<_PasswordSheet> {
               const SizedBox(height: 14),
               _passwordField(_newCtrl, 'Nouveau mot de passe', _showNew,
                   () => setState(() => _showNew = !_showNew),
-                  validator: (v) => v == null || v.length < 8
-                      ? 'Minimum 8 caractères'
+                  validator: (v) => v == null || v.length < 6
+                      ? 'Minimum 6 caractères'
                       : null),
               const SizedBox(height: 14),
               _passwordField(

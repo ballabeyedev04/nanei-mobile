@@ -1,8 +1,7 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import '../models/client_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:nanei/core/utils/app_logger.dart';
 
 abstract class AuthRemoteDataSource {
   Future<AuthResponseModel> login(String identifiant, String motDePasse);
@@ -50,8 +49,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       String identifiant,
       String motDePasse,
       ) async {
-    print('--- Tentative de connexion ---');
-    print('Identifiant (email ou téléphone): $identifiant');
+    AppLogger.debug('Tentative de connexion', {'identifiant': maskEmail(identifiant)});
 
     try {
       final response = await dio.post(
@@ -62,9 +60,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         },
       );
 
-      print('--- Réponse API login ---');
-      print('Status code: ${response.statusCode}');
-      print('Body: ${response.data}');
+      AppLogger.debug('Réponse API login', {'status': response.statusCode});
 
       if (response.statusCode == 200) {
         return AuthResponseModel.fromJson(response.data);
@@ -76,11 +72,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         type: DioExceptionType.badResponse,
         error: response.data['message'] ?? 'Erreur de connexion',
       );
-    } on DioException catch (e) {
-      print('--- Erreur Dio ---');
-      print('Type: ${e.type}');
-      print('Response: ${e.response?.data}');
-      print('Message: ${e.message}');
+    } on DioException catch (e, st) {
+      AppLogger.error('Erreur Dio login: $_loginPath', e, st);
       rethrow;
     }
   }
@@ -95,8 +88,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String telephone,
   }) async {
     try {
-      print('========== REGISTER REQUEST ==========');
-      print('Endpoint : $_registerPath');
+      AppLogger.debug('Tentative d\'inscription', {'endpoint': _registerPath});
 
       // Envoyer directement un JSON
       final data = {
@@ -108,8 +100,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         'telephone': telephone,
       };
 
-      print('Payload : ${data}');
-
       final response = await dio.post(
         _registerPath,
         data: data,
@@ -118,19 +108,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         ),
       );
 
-      print('========== REGISTER RESPONSE ==========');
-      print('Status code : ${response.statusCode}');
-      print('Response data : ${response.data}');
+      AppLogger.debug('Réponse inscription', {'status': response.statusCode});
 
       return AuthResponseModel.fromJson(response.data);
 
-    } on DioException catch (e) {
-      print('========== REGISTER ERROR (DIO) ==========');
-      print('Message : ${e.message}');
-      print('Type : ${e.type}');
-      print('Status code : ${e.response?.statusCode}');
-      print('Error data : ${e.response?.data}');
-      print('Request path : ${e.requestOptions.path}');
+    } on DioException catch (e, st) {
+      AppLogger.error('Erreur Dio inscription: $_registerPath', e, st);
 
       if (e.response?.statusCode == 400) {
         final errorData = e.response?.data;
@@ -146,9 +129,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
 
       rethrow;
-    } catch (e) {
-      print('========== REGISTER ERROR (UNKNOWN) ==========');
-      print('Error : $e');
+    } catch (e, st) {
+      AppLogger.error('Erreur inconnue inscription', e, st);
       rethrow;
     }
   }

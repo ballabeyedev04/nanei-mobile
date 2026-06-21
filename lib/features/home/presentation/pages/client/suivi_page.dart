@@ -9,6 +9,7 @@ import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
 import '../../bloc/colis_state.dart';
 import '../../widgets/empty_state.dart';
+import 'colis_detail_page.dart';
 
 class SuiviPage extends StatefulWidget {
   final User? user;
@@ -519,7 +520,15 @@ class _SuiviColisCard extends StatelessWidget {
           ),
         ],
       ),
-      child: ClipRRect(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ColisDetailPage(
+            colis: colis,
+            isReception: isReception,
+          ),
+        )),
+        child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: IntrinsicHeight(
           child: Row(
@@ -715,6 +724,7 @@ class _SuiviColisCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

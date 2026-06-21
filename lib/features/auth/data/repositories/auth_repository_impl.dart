@@ -33,16 +33,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
       return Right(authResponse.user);
     } on DioException catch (e) {
-      String message = 'Une erreur est survenue';
-
-      if (e.response?.data is Map &&
-          e.response?.data['message'] != null) {
-        message = e.response!.data['message'];
-      } else if (e.message != null) {
-        message = e.message!;
-      }
-
-      return Left(ServerFailure(errorMessage: message));
+      return Left(ServerFailure(errorMessage: _friendlyError(e)));
     } catch (e) {
       return Left(ServerFailure(errorMessage: e.toString()));
     }
@@ -71,18 +62,28 @@ class AuthRepositoryImpl implements AuthRepository {
 
       return Right(authResponse.user);
     } on DioException catch (e) {
-      String message = 'Une erreur est survenue';
-
-      if (e.response?.data is Map &&
-          e.response?.data['message'] != null) {
-        message = e.response!.data['message'];
-      } else if (e.message != null) {
-        message = e.message!;
-      }
-
-      return Left(ServerFailure(errorMessage: message));
+      return Left(ServerFailure(errorMessage: _friendlyError(e)));
     } catch (e) {
       return Left(ServerFailure(errorMessage: e.toString()));
+    }
+  }
+
+  String _friendlyError(DioException e) {
+    if (e.response?.data is Map && e.response?.data['message'] != null) {
+      return e.response!.data['message'] as String;
+    }
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+        return 'Connexion trop lente. Vérifiez votre réseau.';
+      case DioExceptionType.receiveTimeout:
+        return 'Le serveur met du temps à répondre. Veuillez réessayer dans quelques secondes.';
+      case DioExceptionType.connectionError:
+        return 'Impossible de joindre le serveur. Vérifiez votre connexion internet.';
+      case DioExceptionType.badResponse:
+        return 'Erreur serveur (${e.response?.statusCode}). Réessayez plus tard.';
+      default:
+        return 'Une erreur est survenue. Réessayez.';
     }
   }
 }

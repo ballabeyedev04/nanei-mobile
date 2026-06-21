@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -28,6 +29,8 @@ class _LoginPageState extends State<LoginPage>
   bool _obscurePassword = true;
   bool _identifiantFocused = false;
   bool _passwordFocused = false;
+  bool _showSlowWarning = false;
+  Timer? _slowTimer;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -58,7 +61,21 @@ class _LoginPageState extends State<LoginPage>
     _identifiantFocus.dispose();
     _passwordFocus.dispose();
     _animController.dispose();
+    _slowTimer?.cancel();
     super.dispose();
+  }
+
+  void _startSlowTimer() {
+    _slowTimer?.cancel();
+    _showSlowWarning = false;
+    _slowTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _showSlowWarning = true);
+    });
+  }
+
+  void _stopSlowTimer() {
+    _slowTimer?.cancel();
+    if (mounted) setState(() => _showSlowWarning = false);
   }
 
   void _onLoginPressed() {
@@ -82,6 +99,11 @@ class _LoginPageState extends State<LoginPage>
       backgroundColor: AppColor.kBackground,
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
+          if (state is AuthLoading) {
+            _startSlowTimer();
+          } else {
+            _stopSlowTimer();
+          }
           if (state is AuthSuccess) {
             Navigator.of(context).pushNamedAndRemoveUntil(
               AppRouter.clientRoute,
@@ -103,12 +125,52 @@ class _LoginPageState extends State<LoginPage>
             );
           }
         },
-        listenWhen: (previous, current) => previous is AuthLoading,
         builder: (context, state) {
           final isLoading = state is AuthLoading;
           return Stack(
             children: [
               _buildDecorativeBackground(size),
+              if (isLoading && _showSlowWarning)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.orange.shade600,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Démarrage du serveur en cours, patientez quelques secondes...',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: Colors.orange.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               SafeArea(
                 child: FadeTransition(
                   opacity: _fadeAnim,

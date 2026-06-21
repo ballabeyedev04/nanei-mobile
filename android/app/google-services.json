@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "261432219100",
+    "project_id": "nanei-b72da",
+    "storage_bucket": "nanei-b72da.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:261432219100:android:1ca029a98fdd48edf92b19",
+        "android_client_info": {
+          "package_name": "com.nanei.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxiVqE643e2MfHhrWPWtuSNSjOD_AtYNM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
