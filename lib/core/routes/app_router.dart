@@ -15,6 +15,7 @@ import 'package:nanei/features/auth/presentation/pages/reset_password_page.dart'
 import 'package:nanei/features/avis/presentation/cubit/avis_cubit.dart';
 import 'package:nanei/features/avis/presentation/pages/mes_avis_page.dart';
 import 'package:nanei/injection_container.dart' as di;
+import 'package:nanei/core/utils/security_validators.dart';
 
 class AppRouter {
   static const String loginRoute = '/login';
@@ -69,7 +70,10 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const ForgotPasswordPage());
 
       case resetPasswordRoute:
-        final email = settings.arguments as String;
+        final email = SecurityValidators.validateRouteEmail(settings.arguments);
+        if (email == null) {
+          return MaterialPageRoute(builder: (_) => const LoginPage());
+        }
         return MaterialPageRoute(
           builder: (_) => ResetPasswordPage(email: email),
         );

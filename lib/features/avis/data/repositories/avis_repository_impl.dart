@@ -1,19 +1,27 @@
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:nanei/core/errors/failure.dart';
-import '../../domain/entities/paiement.dart';
-import '../../domain/repositories/paiement_repository.dart';
-import '../datasources/paiement_remote_datasource.dart';
+import '../../domain/entities/avis_entity.dart';
+import '../../domain/repositories/avis_repository.dart';
+import '../datasources/avis_remote_datasource.dart';
 
-class PaiementRepositoryImpl implements PaiementRepository {
-  final PaiementRemoteDataSource remoteDataSource;
-  const PaiementRepositoryImpl({required this.remoteDataSource});
+class AvisRepositoryImpl implements AvisRepository {
+  final AvisRemoteDataSource remoteDataSource;
+  const AvisRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<Either<Failure, List<Paiement>>> mesPaiements() async {
+  Future<Either<Failure, void>> donnerAvis({
+    required String colisId,
+    required int note,
+    String? commentaire,
+  }) async {
     try {
-      final result = await remoteDataSource.mesPaiements();
-      return Right(result);
+      await remoteDataSource.donnerAvis(
+        colisId: colisId,
+        note: note,
+        commentaire: commentaire,
+      );
+      return const Right(null);
     } on DioException catch (e) {
       return Left(ServerFailure(errorMessage: _mapDioError(e)));
     } catch (e) {
@@ -22,16 +30,10 @@ class PaiementRepositoryImpl implements PaiementRepository {
   }
 
   @override
-  Future<Either<Failure, String>> initierPaiement({
-    required String colisId,
-    required String moyenPaiement,
-  }) async {
+  Future<Either<Failure, List<AvisEntity>>> mesAvis() async {
     try {
-      final url = await remoteDataSource.initierPaiement(
-        colisId: colisId,
-        moyenPaiement: moyenPaiement,
-      );
-      return Right(url);
+      final result = await remoteDataSource.mesAvis();
+      return Right(result);
     } on DioException catch (e) {
       return Left(ServerFailure(errorMessage: _mapDioError(e)));
     } catch (e) {
@@ -51,7 +53,7 @@ class PaiementRepositoryImpl implements PaiementRepository {
       case DioExceptionType.badResponse:
         final code = e.response?.statusCode ?? 0;
         if (code >= 500) return 'Erreur serveur. Réessayez plus tard.';
-        return e.response?.data?['message']?.toString() ?? 'Erreur de paiement.';
+        return e.response?.data?['message']?.toString() ?? 'Erreur lors de l\'envoi de l\'avis.';
       default:
         return e.error?.toString() ?? 'Erreur inconnue.';
     }

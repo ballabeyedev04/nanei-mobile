@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/utils/security_validators.dart';
 import '../bloc/paiement_bloc.dart';
 import '../bloc/paiement_event.dart';
 import '../bloc/paiement_state.dart';
@@ -43,8 +44,19 @@ class _PaiementsPageState extends State<PaiementsPage>
   }
 
   Future<void> _ouvrirUrl(String url) async {
+    final uri = SecurityValidators.validatePaymentUrl(url);
+    if (uri == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lien de paiement invalide ou non sécurisé.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
     _returningFromBrowser = true;
-    final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       _returningFromBrowser = false;
       if (mounted) {

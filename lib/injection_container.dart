@@ -6,8 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/env.dart';
 import 'core/services/token_service.dart';
+import 'core/network/retry_interceptor.dart';
 import 'core/utils/dio_logger_interceptor.dart';
+import 'core/utils/certificate_pinning_interceptor.dart';
 import 'core/theme/theme_notifier.dart';
+import 'core/theme/theme_cubit.dart';
 
 // Contacts
 import 'features/contacts/data/datasources/contact_remote_datasource.dart';
@@ -26,6 +29,10 @@ import 'features/reclamations/presentation/cubit/reclamations_cubit.dart';
 
 // Avis
 import 'features/avis/data/datasources/avis_remote_datasource.dart';
+import 'features/avis/data/repositories/avis_repository_impl.dart';
+import 'features/avis/domain/repositories/avis_repository.dart';
+import 'features/avis/domain/usecases/donner_avis.dart';
+import 'features/avis/domain/usecases/get_mes_avis.dart';
 import 'features/avis/presentation/cubit/avis_cubit.dart';
 
 // Auth
@@ -71,7 +78,7 @@ Future<void> init() async {
 
   sl.registerLazySingleton(() => const FlutterSecureStorage(
         aOptions: AndroidOptions(encryptedSharedPreferences: true),
-        iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+        iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
       ));
 
   // ── Core ───────────────────────────────────────────────────────────────────
@@ -82,9 +89,9 @@ Future<void> init() async {
     final dio = Dio(
       BaseOptions(
         baseUrl: Env.baseUrl,
-        connectTimeout: const Duration(seconds: 20),
-        receiveTimeout: const Duration(seconds: 90),
-        sendTimeout: const Duration(seconds: 60),
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
         contentType: 'application/json',
         headers: {'Accept': 'application/json'},
       ),
@@ -106,11 +113,40 @@ Future<void> init() async {
       onResponse: (response, handler) {
         return handler.next(response);
       },
-      onError: (DioException e, handler) {
+      onError: (DioException e, handler) async {
+        // Refresh token automatique sur 401
+        if (e.response?.statusCode == 401) {
+          final tokenService = sl<TokenService>();
+          final refreshed = await tokenService.tryRefresh((rt) async {
+            final response = await dio.post(
+              Env.authRefresh,
+              data: {'refreshToken': rt},
+              options: Options(headers: {'Authorization': ''}),
+            );
+            return response.data as Map<String, dynamic>?;
+          });
+          if (refreshed) {
+            // Rejouer la requête originale avec le nouveau token
+            final opts = e.requestOptions;
+            final newToken = await tokenService.getToken();
+            opts.headers['Authorization'] = 'Bearer $newToken';
+            try {
+              final response = await dio.fetch(opts);
+              return handler.resolve(response);
+            } catch (retryError) {
+              return handler.next(e);
+            }
+          } else {
+            // Refresh échoué → déconnexion
+            await tokenService.clearToken();
+          }
+        }
         return handler.next(e);
       },
     ));
 
+    dio.interceptors.add(RetryInterceptor(dio: dio, maxRetries: 3));
+    dio.interceptors.add(CertificatePinningInterceptor());
     dio.interceptors.add(AppDioInterceptor());
 
     return dio;
@@ -198,8 +234,14 @@ Future<void> init() async {
   sl.registerLazySingleton<AvisRemoteDataSource>(
     () => AvisRemoteDataSourceImpl(dio: sl()),
   );
-  sl.registerFactory(() => AvisCubit(dataSource: sl()));
+  sl.registerLazySingleton<AvisRepository>(
+    () => AvisRepositoryImpl(remoteDataSource: sl()),
+  );
+  sl.registerLazySingleton(() => DonnerAvis(sl()));
+  sl.registerLazySingleton(() => GetMesAvis(sl()));
+  sl.registerFactory(() => AvisCubit(donnerAvis: sl(), getMesAvis: sl()));
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   sl.registerLazySingleton(() => ThemeNotifier());
+  sl.registerLazySingleton(() => ThemeCubit());
 }

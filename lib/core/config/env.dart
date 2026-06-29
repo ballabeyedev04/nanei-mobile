@@ -7,7 +7,7 @@ class Env {
 
   static String _get(String key, String fallback) {
     // 1. Compile-time dart-define (production)
-    final defined = const String.fromEnvironment('');
+    final defined = String.fromEnvironment(key);
     if (defined.isNotEmpty) return defined;
 
     // 2. .env fichier (développement)
@@ -82,4 +82,8 @@ class Env {
 
   // ── Suivi public ─────────────────────────────────────────────────────────
   static String suiviPublic(String reference)   => '$baseUrl/nanei/suivi/$reference';
+
+  // ── Paiements ─────────────────────────────────────────────────────────────
+  static String get paiements                       => '/paiements';
+  static String paiementInitier(String colisId)     => '/paiements/$colisId/initier';
 }

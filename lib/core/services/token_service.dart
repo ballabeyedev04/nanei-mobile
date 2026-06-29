@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decode/jwt_decode.dart';
+import '../constants/storage_keys.dart';
 
 class TokenService {
   final FlutterSecureStorage secureStorage;
@@ -19,7 +20,7 @@ class TokenService {
   }
 
   Future<String?> getToken() async {
-    return await secureStorage.read(key: 'jwt_token');
+    return await secureStorage.read(key: StorageKeys.jwtToken);
   }
 
   /// Retourne le token uniquement s'il est valide (non expiré).
@@ -35,28 +36,28 @@ class TokenService {
 
   Future<void> setToken(String? token) async {
     if (token == null || token.isEmpty) {
-      await secureStorage.delete(key: 'jwt_token');
+      await secureStorage.delete(key: StorageKeys.jwtToken);
     } else {
-      await secureStorage.write(key: 'jwt_token', value: token);
+      await secureStorage.write(key: StorageKeys.jwtToken, value: token);
     }
     final auth = await isAuthenticated;
     _authController.add(auth);
   }
 
   Future<void> clearToken() async {
-    await secureStorage.delete(key: 'jwt_token');
-    await secureStorage.delete(key: 'refresh_token');
+    await secureStorage.delete(key: StorageKeys.jwtToken);
+    await secureStorage.delete(key: StorageKeys.refreshToken);
     _authController.add(false);
   }
 
   Future<String?> getRefreshToken() async =>
-      secureStorage.read(key: 'refresh_token');
+      secureStorage.read(key: StorageKeys.refreshToken);
 
   Future<void> setRefreshToken(String? token) async {
     if (token == null || token.isEmpty) {
-      await secureStorage.delete(key: 'refresh_token');
+      await secureStorage.delete(key: StorageKeys.refreshToken);
     } else {
-      await secureStorage.write(key: 'refresh_token', value: token);
+      await secureStorage.write(key: StorageKeys.refreshToken, value: token);
     }
   }
 
@@ -72,6 +73,25 @@ class TokenService {
           .isAfter(expiryDate.subtract(const Duration(seconds: 30)));
     } catch (_) {
       return true;
+    }
+  }
+
+  /// Tente de rafraîchir le JWT via le refresh token.
+  /// Retourne true si succès, false sinon.
+  Future<bool> tryRefresh(Future<Map<String, dynamic>?> Function(String) refreshCall) async {
+    final rt = await getRefreshToken();
+    if (rt == null || rt.isEmpty) return false;
+    try {
+      final data = await refreshCall(rt);
+      if (data == null) return false;
+      final newJwt = data['token'] as String?;
+      final newRt  = data['refreshToken'] as String?;
+      if (newJwt == null || newJwt.isEmpty) return false;
+      await setToken(newJwt);
+      if (newRt != null) await setRefreshToken(newRt);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

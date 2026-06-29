@@ -7,6 +7,7 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_color.dart';
+import '../../../../core/utils/security_validators.dart';
 import '../../../../core/widgets/toastNotif.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
@@ -610,11 +611,7 @@ class _RegisterPageState extends State<RegisterPage>
             fontWeight: FontWeight.w500,
             color: AppColor.kGrayscaleDark100,
           ),
-          validator: (v) {
-            if (v == null || v.isEmpty) return 'Ce champ est requis';
-            if (v.length < 6) return 'Minimum 6 caractères';
-            return null;
-          },
+          validator: SecurityValidators.validatePassword,
           decoration: _inputDecoration(
             hint: 'Créez un mot de passe sécurisé',
             icon: Icons.lock_outline_rounded,

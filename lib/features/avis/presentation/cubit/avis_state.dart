@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../data/models/avis_model.dart';
+import '../../domain/entities/avis_entity.dart';
 
 abstract class AvisState extends Equatable {
   const AvisState();
@@ -24,7 +24,7 @@ class AvisChargement extends AvisState {
 }
 
 class AvisCharges extends AvisState {
-  final List<AvisModel> avis;
+  final List<AvisEntity> avis;
   const AvisCharges(this.avis);
   @override
   List<Object?> get props => [avis];

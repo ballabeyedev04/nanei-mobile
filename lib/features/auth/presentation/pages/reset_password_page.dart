@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/config/env.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_color.dart';
+import '../../../../core/utils/security_validators.dart';
 import '../../../../injection_container.dart';
 
 class ResetPasswordPage extends StatefulWidget {
@@ -28,8 +30,29 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   bool _loading = false;
   String? _error;
 
+  // ── Rate limiting OTP ──────────────────────────────────────────────────────
+  static const _maxAttempts = 5;
+  static const _lockDuration = Duration(minutes: 5);
+  int _attempts = 0;
+  bool _locked = false;
+  Timer? _lockTimer;
+  int _lockSecondsLeft = 0;
+
+  void _startLockdown() {
+    setState(() { _locked = true; _lockSecondsLeft = _lockDuration.inSeconds; });
+    _lockTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      setState(() { _lockSecondsLeft--; });
+      if (_lockSecondsLeft <= 0) {
+        t.cancel();
+        if (mounted) setState(() { _locked = false; _attempts = 0; });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _lockTimer?.cancel();
     _codeCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
@@ -37,6 +60,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   }
 
   Future<void> _submit() async {
+    if (_locked) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
 
@@ -50,6 +74,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
           'mot_de_passe': _passwordCtrl.text,
         },
       );
+      _attempts = 0;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -62,8 +87,20 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       );
       Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.loginRoute, (_) => false);
     } on DioException catch (e) {
+      _attempts++;
       final msg = e.response?.data?['message'] as String? ?? 'Une erreur est survenue.';
-      if (mounted) setState(() { _error = msg; _loading = false; });
+      if (_attempts >= _maxAttempts) {
+        _startLockdown();
+        if (mounted) setState(() {
+          _error = 'Trop de tentatives. Réessayez dans 5 minutes.';
+          _loading = false;
+        });
+      } else {
+        if (mounted) setState(() {
+          _error = '$msg (${_maxAttempts - _attempts} tentative(s) restante(s))';
+          _loading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() { _error = 'Une erreur inattendue est survenue.'; _loading = false; });
     }
@@ -187,11 +224,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Le mot de passe est requis';
-                    if (v.length < 6) return 'Minimum 6 caractères';
-                    return null;
-                  },
+                  validator: SecurityValidators.validatePassword,
                 ),
                 const SizedBox(height: 20),
 
@@ -241,7 +274,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                 SizedBox(
                   width: double.infinity, height: 52,
                   child: ElevatedButton(
-                    onPressed: _loading ? null : _submit,
+                    onPressed: (_loading || _locked) ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColor.kPrimary,
                       disabledBackgroundColor: AppColor.kPrimary.withOpacity(0.6),
@@ -251,9 +284,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     child: _loading
                         ? const SizedBox(width: 22, height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text('Changer le mot de passe',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+                        : _locked
+                            ? Text('Verrouillé — $_lockSecondsLeft s',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white))
+                            : Text('Changer le mot de passe',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
                   ),
                 ),
                 const SizedBox(height: 16),

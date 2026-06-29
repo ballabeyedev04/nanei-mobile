@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:nanei/core/config/env.dart';
 import '../../domain/entities/paiement.dart';
 import '../models/paiement_model.dart';
 
@@ -13,7 +14,7 @@ class PaiementRemoteDataSourceImpl implements PaiementRemoteDataSource {
 
   @override
   Future<List<Paiement>> mesPaiements() async {
-    final response = await dio.get('/paiements');
+    final response = await dio.get(Env.paiements);
     final List data = response.data['data'] ?? [];
     return data.map((e) => PaiementModel.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -24,11 +25,17 @@ class PaiementRemoteDataSourceImpl implements PaiementRemoteDataSource {
     required String moyenPaiement,
   }) async {
     final response = await dio.post(
-      '/paiements/$colisId/initier',
+      Env.paiementInitier(colisId),
       data: {'moyenPaiement': moyenPaiement},
     );
     final url = response.data['data']?['checkoutUrl'] as String?;
-    if (url == null || url.isEmpty) throw Exception('URL de paiement invalide');
+    if (url == null || url.isEmpty) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        error: 'URL de paiement invalide retournée par le serveur.',
+      );
+    }
     return url;
   }
 }

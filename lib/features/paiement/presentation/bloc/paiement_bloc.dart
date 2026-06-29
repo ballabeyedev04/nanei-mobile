@@ -20,29 +20,31 @@ class PaiementBloc extends Bloc<PaiementEvent, PaiementState> {
 
   Future<void> _onLoad(PaiementEvent event, Emitter<PaiementState> emit) async {
     emit(PaiementLoading());
-    try {
-      final paiements = await getMesPaiements();
-      emit(PaiementLoaded(paiements));
-    } catch (e, st) {
-      AppLogger.error('Erreur dans PaiementBloc._onLoad', e, st);
-      AppLogger.warning('État erreur: PaiementBloc', 'Impossible de charger les paiements');
-      emit(PaiementError('Impossible de charger les paiements'));
-    }
+    final result = await getMesPaiements();
+    result.fold(
+      (failure) {
+        AppLogger.warning('État erreur: PaiementBloc', failure.errorMessage);
+        emit(PaiementError(failure.errorMessage));
+      },
+      (paiements) => emit(PaiementLoaded(paiements)),
+    );
   }
 
   Future<void> _onInitier(InitierPaiementEvent event, Emitter<PaiementState> emit) async {
     emit(PaiementInitiating());
-    try {
-      final url = await initierPaiement(
-        colisId: event.colisId,
-        moyenPaiement: event.moyenPaiement,
-      );
-      AppLogger.paiementEvent('Paiement initié', type: event.moyenPaiement);
-      emit(PaiementUrlReady(url));
-    } catch (e, st) {
-      AppLogger.error('Erreur dans PaiementBloc._onInitier', e, st);
-      AppLogger.warning('État erreur: PaiementBloc initiation', e.toString());
-      emit(PaiementInitiationError(e.toString().replaceFirst('Exception: ', '')));
-    }
+    final result = await initierPaiement(
+      colisId: event.colisId,
+      moyenPaiement: event.moyenPaiement,
+    );
+    result.fold(
+      (failure) {
+        AppLogger.warning('État erreur: PaiementBloc initiation', failure.errorMessage);
+        emit(PaiementInitiationError(failure.errorMessage));
+      },
+      (url) {
+        AppLogger.paiementEvent('Paiement initié', type: event.moyenPaiement);
+        emit(PaiementUrlReady(url));
+      },
+    );
   }
 }
