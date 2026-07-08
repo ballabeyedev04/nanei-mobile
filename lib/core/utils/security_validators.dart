@@ -20,7 +20,7 @@ class SecurityValidators {
     'pay.wave.com',
     'checkout.orange-money.com',
     'api.orange-money.com',
-    'nanei.onrender.com',
+    'api.app-nanei.com',
   ];
 
   /// Valide que l'URL de paiement est HTTPS et pointe vers un domaine autorisé.
