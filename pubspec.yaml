@@ -131,4 +131,8 @@ flutter_icons:
   ios: true
   image_path: "assets/icons/logo.png"
   adaptive_icon_background: "#ffffff"
-  adaptive_icon_foreground: "assets/icons/logo.png"
+  # Image dédiée avec marge de sécurité (60%) : le logo original touche les
+  # bords du canevas, ce qui le faisait rogner/zoomer par le masque adaptatif
+  # Android (cercle/carré arrondi selon le lanceur), masquant "NANEI" et les
+  # coins du cube dans la liste des applications.
+  adaptive_icon_foreground: "assets/icons/logo_foreground.png"
