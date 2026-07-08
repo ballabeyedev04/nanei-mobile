@@ -141,7 +141,7 @@ class _RegisterPageState extends State<RegisterPage>
           } else {
             _stopSlowTimer();
           }
-          if (state is AuthSuccess) {
+          if (state is AuthSuccess && state.action == AuthAction.register) {
             FocusScope.of(context).unfocus();
             context.read<AuthBloc>().add(ResetAuthState());
             showToast(
@@ -154,7 +154,7 @@ class _RegisterPageState extends State<RegisterPage>
               AppRouter.loginRoute,
               (route) => false,
             );
-          } else if (state is AuthFailure) {
+          } else if (state is AuthFailure && state.action == AuthAction.register) {
             showToast(
               context,
               'Échec de l\'inscription',

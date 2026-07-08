@@ -41,11 +41,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     result.fold(
           (failure) {
             AppLogger.warning('État erreur: AuthBloc', failure.errorMessage);
-            emit(AuthFailure(message: failure.errorMessage));
+            emit(AuthFailure(message: failure.errorMessage, action: AuthAction.login));
           },
           (user) {
             AppLogger.authEvent('Connexion réussie', userId: user.id, email: user.email);
-            emit(AuthSuccess(user: user));
+            emit(AuthSuccess(user: user, action: AuthAction.login));
           },
     );
   }
@@ -68,11 +68,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     result.fold(
           (failure) {
             AppLogger.warning('État erreur: AuthBloc inscription', failure.errorMessage);
-            emit(AuthFailure(message: failure.errorMessage));
+            emit(AuthFailure(message: failure.errorMessage, action: AuthAction.register));
           },
           (user) {
             AppLogger.authEvent('Inscription réussie', userId: user.id, email: user.email);
-            emit(AuthSuccess(user: user));
+            emit(AuthSuccess(user: user, action: AuthAction.register));
           },
     );
   }
@@ -108,7 +108,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthInitial());
     } catch (e, st) {
       AppLogger.error('Erreur dans AuthBloc._onLogoutRequested', e, st);
-      emit(AuthFailure(message: 'Erreur lors de la déconnexion : $e'));
+      emit(AuthFailure(message: 'Erreur lors de la déconnexion : $e', action: AuthAction.logout));
     }
   }
 }

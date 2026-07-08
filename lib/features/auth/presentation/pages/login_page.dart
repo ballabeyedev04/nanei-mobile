@@ -104,7 +104,7 @@ class _LoginPageState extends State<LoginPage>
           } else {
             _stopSlowTimer();
           }
-          if (state is AuthSuccess) {
+          if (state is AuthSuccess && state.action == AuthAction.login) {
             Navigator.of(context).pushNamedAndRemoveUntil(
               AppRouter.clientRoute,
               (route) => false,
@@ -116,7 +116,7 @@ class _LoginPageState extends State<LoginPage>
               'Bienvenue de retour !',
               ToastificationType.success,
             );
-          } else if (state is AuthFailure) {
+          } else if (state is AuthFailure && state.action == AuthAction.login) {
             showToast(
               context,
               'Échec de la connexion',
