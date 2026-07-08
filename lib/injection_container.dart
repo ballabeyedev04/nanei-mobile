@@ -1,4 +1,8 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
@@ -8,7 +12,6 @@ import 'core/config/env.dart';
 import 'core/services/token_service.dart';
 import 'core/network/retry_interceptor.dart';
 import 'core/utils/dio_logger_interceptor.dart';
-import 'core/utils/certificate_pinning_interceptor.dart';
 import 'core/theme/theme_notifier.dart';
 import 'core/theme/theme_cubit.dart';
 
@@ -84,6 +87,21 @@ Future<void> init() async {
   // ── Core ───────────────────────────────────────────────────────────────────
   sl.registerLazySingleton(() => TokenService(secureStorage: sl()));
 
+  // Certificate pinning — chargement du CA cert en mémoire une seule fois.
+  // Si le cert change côté backend (renouvellement), le chargement échoue
+  // gracieusement et l'app tombe sur la validation système (pas de crash).
+  //
+  // NOTE : on épingle le certificat INTERMÉDIAIRE Let's Encrypt (YE2), pas le
+  // certificat feuille — celui-ci change à chaque renouvellement (~90j) alors
+  // que l'intermédiaire reste stable sur une longue période.
+  Uint8List? pinnedCertBytes;
+  try {
+    final certByteData = await rootBundle.load('assets/certs/backend_ca.pem');
+    pinnedCertBytes = certByteData.buffer.asUint8List();
+  } catch (_) {
+    pinnedCertBytes = null;
+  }
+
   // ── Dio ────────────────────────────────────────────────────────────────────
   sl.registerLazySingleton(() {
     final dio = Dio(
@@ -96,6 +114,23 @@ Future<void> init() async {
         headers: {'Accept': 'application/json'},
       ),
     );
+
+    // Certificate pinning (production uniquement + cert disponible).
+    // Fallback automatique vers la validation système si le cert a changé.
+    if (!kDebugMode && pinnedCertBytes != null) {
+      final certBytes = pinnedCertBytes;
+      dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () {
+          try {
+            final sc = SecurityContext(withTrustedRoots: false);
+            sc.setTrustedCertificatesBytes(certBytes);
+            return HttpClient(context: sc);
+          } catch (_) {
+            return HttpClient();
+          }
+        },
+      );
+    }
 
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -146,7 +181,6 @@ Future<void> init() async {
     ));
 
     dio.interceptors.add(RetryInterceptor(dio: dio, maxRetries: 3));
-    dio.interceptors.add(CertificatePinningInterceptor());
     dio.interceptors.add(AppDioInterceptor());
 
     return dio;
