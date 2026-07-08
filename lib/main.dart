@@ -28,8 +28,7 @@ void main() async {
   if (!kDebugMode) {
     try {
       final isJailbroken = await SafeDevice.isJailBroken;
-      final isDeveloperMode = await SafeDevice.isDevelopmentModeEnable;
-      if (isJailbroken || isDeveloperMode) {
+      if (isJailbroken) {
         AppLogger.warning('Appareil rooté ou en mode développeur détecté');
         runApp(const _DeviceCompromisedApp());
         return;
