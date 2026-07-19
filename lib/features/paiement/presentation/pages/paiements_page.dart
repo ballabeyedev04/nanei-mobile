@@ -8,7 +8,10 @@ import '../bloc/paiement_bloc.dart';
 import '../bloc/paiement_event.dart';
 import '../bloc/paiement_state.dart';
 import '../../domain/entities/paiement.dart';
-import '../widgets/choix_paiement_sheet.dart';
+// Réactiver quand le paiement en ligne (Wave/Orange Money) sera géré côté
+// backend — voir _afficherChoixPaiement ci-dessous.
+// import '../widgets/choix_paiement_sheet.dart';
+import '../widgets/service_indisponible_sheet.dart';
 import '../widgets/facture_button.dart';
 
 class PaiementsPage extends StatefulWidget {
@@ -68,20 +71,31 @@ class _PaiementsPageState extends State<PaiementsPage>
   }
 
   void _afficherChoixPaiement(Paiement paiement) {
+    // TEMPORAIRE : le paiement en ligne n'est pas encore géré côté backend.
+    // Une fois prêt, décommenter le bloc ci-dessous et supprimer l'appel à
+    // ServiceIndisponibleSheet.
+    //
+    // showModalBottomSheet(
+    //   context: context,
+    //   backgroundColor: Colors.transparent,
+    //   isScrollControlled: true,
+    //   builder: (_) => ChoixPaiementSheet(
+    //     reference: paiement.reference,
+    //     montant: paiement.prixTotal,
+    //     onChoix: (moyen) {
+    //       context.read<PaiementBloc>().add(InitierPaiementEvent(
+    //         colisId: paiement.colisId,
+    //         moyenPaiement: moyen,
+    //       ));
+    //     },
+    //   ),
+    // );
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => ChoixPaiementSheet(
-        reference: paiement.reference,
-        montant: paiement.prixTotal,
-        onChoix: (moyen) {
-          context.read<PaiementBloc>().add(InitierPaiementEvent(
-            colisId: paiement.colisId,
-            moyenPaiement: moyen,
-          ));
-        },
-      ),
+      builder: (_) => const ServiceIndisponibleSheet(),
     );
   }
 
