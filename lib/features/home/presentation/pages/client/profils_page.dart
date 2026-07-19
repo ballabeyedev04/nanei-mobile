@@ -1,17 +1,17 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/utils/app_logger.dart';
 import 'package:nanei/core/widgets/talker_debug_screen.dart';
 import 'package:nanei/core/config/env.dart';
 import 'package:nanei/core/theme/app_color.dart';
-import 'package:nanei/core/theme/theme_notifier.dart';
+import 'package:nanei/core/theme/theme_cubit.dart';
 import 'package:nanei/core/widgets/app_toast.dart';
 import 'package:nanei/core/routes/app_router.dart';
 import 'package:nanei/core/services/token_service.dart';
 import 'package:nanei/injection_container.dart';
-import 'package:provider/provider.dart';
 
 class ProfilsPage extends StatefulWidget {
   const ProfilsPage({super.key});
@@ -127,17 +127,24 @@ class _ProfilsPageState extends State<ProfilsPage>
                       const SizedBox(height: 20),
                       _buildSectionLabel('Préférences'),
                       const SizedBox(height: 12),
-                      // Dark mode
-                      Consumer<ThemeNotifier>(
-                        builder: (context, themeNotifier, _) {
+                      // Dark mode — ThemeCubit est le seul système de thème
+                      // réellement fourni dans l'arbre de widgets (voir
+                      // main.dart, BlocProvider au-dessus de MyApp).
+                      // ThemeNotifier (provider) n'était jamais fourni : le
+                      // Consumer<ThemeNotifier> levait une exception à
+                      // chaque affichage de cette page, remplacée par un
+                      // rectangle gris (ErrorWidget par défaut hors debug).
+                      BlocBuilder<ThemeCubit, ThemeMode>(
+                        builder: (context, themeMode) {
+                          final isDark = themeMode == ThemeMode.dark;
                           return _buildSwitchTile(
                             icon: Icons.dark_mode_rounded,
                             iconColor: const Color(0xFF1E293B),
                             iconBg: const Color(0xFFE2E8F0),
                             label: 'Mode sombre',
-                            sub: themeNotifier.isDark ? 'Activé' : 'Désactivé',
-                            value: themeNotifier.isDark,
-                            onChanged: (_) => themeNotifier.toggle(),
+                            sub: isDark ? 'Activé' : 'Désactivé',
+                            value: isDark,
+                            onChanged: (_) => context.read<ThemeCubit>().toggle(),
                           );
                         },
                       ),
@@ -942,8 +949,8 @@ class _PasswordSheetState extends State<_PasswordSheet> {
     setState(() => _loading = true);
     try {
       await widget.onSave({
-        'ancienPassword': _oldCtrl.text,
-        'nouveauPassword': _newCtrl.text,
+        'oldPassword': _oldCtrl.text,
+        'newPassword': _newCtrl.text,
       });
       if (mounted) {
         Navigator.of(context).pop();
@@ -951,7 +958,17 @@ class _PasswordSheetState extends State<_PasswordSheet> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorToast(context, 'Mot de passe actuel incorrect.');
+        // Affiche le vrai message renvoyé par le serveur (ex: validation,
+        // mot de passe incorrect, erreur réseau) au lieu d'un message
+        // générique qui masquait la cause réelle en cas d'erreur 400.
+        String message = 'Impossible de modifier le mot de passe.';
+        if (e is DioException) {
+          final data = e.response?.data;
+          if (data is Map && data['message'] is String) {
+            message = data['message'] as String;
+          }
+        }
+        showErrorToast(context, message);
       }
     } finally {
       if (mounted) setState(() => _loading = false);

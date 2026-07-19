@@ -55,33 +55,36 @@ class Env {
   static String get messagesEnvoyer => '/messages';
 
   // ── FCM ───────────────────────────────────────────────────────────────────
-  static String get accountFcmToken => '/nanei/account/fcm-token';
+  // NB : baseUrl (API_BASE_URL) inclut déjà le préfixe /nanei en production
+  // (ex: https://api.app-nanei.com/nanei) — ne jamais le répéter ici, sinon
+  // les requêtes partent en /nanei/nanei/... et le backend renvoie 404.
+  static String get accountFcmToken => '/account/fcm-token';
 
   // ── Contacts ─────────────────────────────────────────────────────────────
-  static String get contacts                    => '/nanei/contacts';
-  static String contactById(String id)          => '/nanei/contacts/$id';
+  static String get contacts                    => '/contacts';
+  static String contactById(String id)          => '/contacts/$id';
 
   // ── Réclamations ─────────────────────────────────────────────────────────
-  static String get reclamations                => '/nanei/reclamations';
-  static String reclamationById(String id)      => '/nanei/reclamations/$id';
+  static String get reclamations                => '/reclamations';
+  static String reclamationById(String id)      => '/reclamations/$id';
 
   // ── Avis ──────────────────────────────────────────────────────────────────
-  static String get avis                        => '/nanei/avis';
+  static String get avis                        => '/avis';
 
   // ── Preuve de livraison ───────────────────────────────────────────────────
-  static String preuveLivraison(String colisId) => '/nanei/colis/$colisId/preuve';
+  static String preuveLivraison(String colisId) => '/colis/$colisId/preuve';
 
   // ── Étiquette colis ───────────────────────────────────────────────────────
-  static String etiquetteColis(String colisId) => '/nanei/etiquettes/$colisId';
+  static String etiquetteColis(String colisId) => '/etiquettes/$colisId';
 
   // ── Compte ───────────────────────────────────────────────────────────────
-  static String get accountDelete               => '/nanei/account';
+  static String get accountDelete               => '/account';
 
   // ── Reset Password ────────────────────────────────────────────────────────
   static String resetPassword(String token)     => '/auth/reset-password/$token';
 
   // ── Suivi public ─────────────────────────────────────────────────────────
-  static String suiviPublic(String reference)   => '$baseUrl/nanei/suivi/$reference';
+  static String suiviPublic(String reference)   => '$baseUrl/suivi/$reference';
 
   // ── Paiements ─────────────────────────────────────────────────────────────
   static String get paiements                       => '/paiements';
