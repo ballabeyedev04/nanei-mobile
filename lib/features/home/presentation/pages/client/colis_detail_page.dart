@@ -60,7 +60,9 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
         options: Options(responseType: ResponseType.bytes),
       );
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/etiquette_${colis.id}.pdf');
+      // Nom de fichier basé sur la référence colis (lisible), pas l'UUID
+      // interne — c'est ce nom qui s'affiche dans le lecteur PDF du téléphone.
+      final file = File('${dir.path}/Etiquette-${colis.reference}.pdf');
       await file.writeAsBytes(response.data as List<int>);
       await OpenFile.open(file.path);
     } catch (e) {

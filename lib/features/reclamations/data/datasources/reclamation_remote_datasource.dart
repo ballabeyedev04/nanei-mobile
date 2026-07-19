@@ -21,7 +21,7 @@ class ReclamationRemoteDataSourceImpl implements ReclamationRemoteDataSource {
   @override
   Future<List<ReclamationModel>> getReclamations() async {
     final response = await dio.get(Env.reclamations);
-    final List data = response.data['data'] ?? [];
+    final List data = response.data['reclamations'] ?? [];
     return data
         .map((e) => ReclamationModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -39,7 +39,7 @@ class ReclamationRemoteDataSourceImpl implements ReclamationRemoteDataSource {
         .toList();
 
     final fd = FormData.fromMap({
-      'colisId': colisId,
+      'colis_id': colisId,
       'type': type,
       'description': description,
     });
@@ -51,13 +51,13 @@ class ReclamationRemoteDataSourceImpl implements ReclamationRemoteDataSource {
       options: Options(contentType: 'multipart/form-data'),
     );
     return ReclamationModel.fromJson(
-        response.data['data'] as Map<String, dynamic>);
+        response.data['reclamation'] as Map<String, dynamic>);
   }
 
   @override
   Future<ReclamationModel> getReclamation(String id) async {
     final response = await dio.get(Env.reclamationById(id));
     return ReclamationModel.fromJson(
-        response.data['data'] as Map<String, dynamic>);
+        response.data['reclamation'] as Map<String, dynamic>);
   }
 }
