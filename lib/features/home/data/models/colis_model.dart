@@ -15,6 +15,7 @@ class ColisModel extends Colis {
     super.description,
     required super.createdAt,
     super.updatedAt,
+    super.lotId,
   });
 
   factory ColisModel.fromJson(Map<String, dynamic> json) {
@@ -39,6 +40,7 @@ class ColisModel extends Colis {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : null,
+      lotId: json['lot_id']?.toString(),
     );
   }
 
@@ -52,6 +54,7 @@ class ColisModel extends Colis {
         'type': type,
         'description': description,
         'createdAt': createdAt.toIso8601String(),
+        'lot_id': lotId,
       };
 }
 

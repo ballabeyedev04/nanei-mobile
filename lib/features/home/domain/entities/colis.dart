@@ -13,6 +13,9 @@ class Colis {
   final String? description;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  /// Regroupement de colis — non null si ce colis a été envoyé avec d'autres
+  /// dans une même commande groupée (voir EnvoyerColisLot).
+  final String? lotId;
 
   const Colis({
     required this.id,
@@ -27,5 +30,6 @@ class Colis {
     this.description,
     required this.createdAt,
     this.updatedAt,
+    this.lotId,
   });
 }

@@ -6,6 +6,7 @@ import '../entities/country_pricing.dart';
 abstract class ColisRepository {
   Future<List<Colis>> getColisEnvoyes();
   Future<List<Colis>> getColisRecus();
+  Future<Colis> rechercherColisParReference(String reference);
   Future<Map<String, int>> getStatistiques();
   Future<String?> envoyerColis({
     required String recepteurId,
@@ -15,6 +16,7 @@ abstract class ColisRepository {
     required String typeColis,
     String? description,
   });
+  Future<List<Colis>> envoyerColisLot(List<Map<String, dynamic>> items);
   Future<List<ClientRecherche>> rechercherClient(String query);
   Future<List<NotificationModel>> getNotifications();
   Future<void> marquerNotificationLue(String id);

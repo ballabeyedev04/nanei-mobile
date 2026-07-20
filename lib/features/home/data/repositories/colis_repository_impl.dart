@@ -18,6 +18,10 @@ class ColisRepositoryImpl implements ColisRepository {
       remoteDataSource.getColisRecus();
 
   @override
+  Future<Colis> rechercherColisParReference(String reference) =>
+      remoteDataSource.rechercherColisParReference(reference);
+
+  @override
   Future<Map<String, int>> getStatistiques() =>
       remoteDataSource.getStatistiques();
 
@@ -38,6 +42,10 @@ class ColisRepositoryImpl implements ColisRepository {
         typeColis: typeColis,
         description: description,
       );
+
+  @override
+  Future<List<Colis>> envoyerColisLot(List<Map<String, dynamic>> items) =>
+      remoteDataSource.envoyerColisLot(items);
 
   @override
   Future<List<ClientRecherche>> rechercherClient(String query) =>

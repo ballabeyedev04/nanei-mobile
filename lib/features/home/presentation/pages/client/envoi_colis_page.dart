@@ -11,6 +11,7 @@ import '../../bloc/colis_event.dart';
 import '../../../domain/entities/client_recherche.dart';
 import '../../../domain/entities/country_pricing.dart';
 import '../../../domain/usecases/envoyer_colis.dart';
+import '../../../domain/usecases/envoyer_colis_lot.dart';
 import '../../../domain/usecases/rechercher_client.dart';
 import '../../../domain/usecases/get_countries.dart';
 import '../../../domain/usecases/get_pricing_by_country.dart';
@@ -23,8 +24,27 @@ class EnvoiColisPage extends StatefulWidget {
   State<EnvoiColisPage> createState() => _EnvoiColisPageState();
 }
 
+/// Un colis déjà validé et mis de côté dans le lot en cours de constitution
+/// (regroupement — plusieurs colis envoyés en une seule commande).
+class _PanierItem {
+  final EnvoyerColisParams params;
+  final String destinataireNom;
+  final String paysNom;
+
+  const _PanierItem({
+    required this.params,
+    required this.destinataireNom,
+    required this.paysNom,
+  });
+}
+
 class _EnvoiColisPageState extends State<EnvoiColisPage> {
   int _currentStep = 1;
+
+  // ── Regroupement de colis ────────────────────────────────────────────────
+  // Colis déjà "ajoutés au lot" en attente d'être envoyés ensemble en une
+  // seule commande. Vide = comportement inchangé (envoi simple d'un colis).
+  final List<_PanierItem> _panier = [];
 
   // ── Pays / Pricing ───────────────────────────────────────────────────────
   List<CountryItem> _countries = [];
@@ -254,7 +274,85 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     });
   }
 
+  /// Construit les paramètres du colis actuellement affiché à l'écran, si le
+  /// formulaire est valide — null sinon (ex: pas de destinataire sélectionné).
+  EnvoyerColisParams? _buildCurrentParams() {
+    if (_selectedDestinataire == null) return null;
+    if (_selectedCountry == null) return null;
+    if (!(_formKeyStep2.currentState?.validate() ?? false)) return null;
+
+    final double poids = double.tryParse(_poidsController.text) ?? 0.0;
+    return EnvoyerColisParams(
+      recepteurId: _selectedDestinataire!.id,
+      poids: poids,
+      prix: _totalEstime,
+      destination: _selectedCountry!.name,
+      typeColis: _typeController.text,
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
+    );
+  }
+
+  /// Réinitialise le formulaire pour la saisie d'un nouveau colis, en
+  /// conservant le contenu déjà mis de côté dans le panier (_panier).
+  void _reinitialiserFormulaire() {
+    setState(() {
+      _currentStep = 1;
+      _selectedCountry = null;
+      _countryPricing = null;
+      _selectedShippingType = null;
+      _needsPickup = false;
+      _needsDelivery = false;
+      _selectedDestinataire = null;
+      _rechercheController.clear();
+      _resultatsRecherche = [];
+      _typeController.clear();
+      _poidsController.clear();
+      _descriptionController.clear();
+    });
+  }
+
+  /// Ajoute le colis actuellement configuré au lot, puis réinitialise le
+  /// formulaire pour permettre la saisie d'un colis supplémentaire.
+  void _ajouterAuPanier() {
+    if (_selectedDestinataire == null) {
+      showErrorToast(context, 'Veuillez sélectionner un destinataire.');
+      return;
+    }
+    final params = _buildCurrentParams();
+    if (params == null) return;
+
+    final nomDestinataire =
+        '${_selectedDestinataire!.prenom} ${_selectedDestinataire!.nom}'.trim();
+
+    setState(() {
+      _panier.add(_PanierItem(
+        params: params,
+        destinataireNom: nomDestinataire,
+        paysNom: _selectedCountry?.name ?? '',
+      ));
+    });
+    showToast(
+      context,
+      'Colis ajouté au lot',
+      '${_panier.length} colis prêt${_panier.length > 1 ? 's' : ''} à être envoyé${_panier.length > 1 ? 's' : ''} ensemble.',
+      ToastificationType.success,
+    );
+    _reinitialiserFormulaire();
+  }
+
+  void _retirerDuPanier(int index) {
+    setState(() => _panier.removeAt(index));
+  }
+
   void _envoyer() async {
+    // ── Regroupement : un lot est déjà constitué, on envoie tout d'un coup ──
+    if (_panier.isNotEmpty) {
+      await _envoyerLot();
+      return;
+    }
+
     if (_selectedDestinataire == null) {
       showErrorToast(context, 'Veuillez sélectionner un destinataire.');
       return;
@@ -306,6 +404,41 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     }
   }
 
+  /// Envoie tous les colis du panier en une seule commande groupée. Si le
+  /// formulaire actuellement affiché contient un colis valide non encore
+  /// ajouté, il est inclus automatiquement (sans bloquer l'envoi s'il est
+  /// incomplet — l'utilisateur a simplement fini d'ajouter des colis).
+  Future<void> _envoyerLot() async {
+    final items = List<EnvoyerColisParams>.from(_panier.map((p) => p.params));
+    final dernierItem = _buildCurrentParams();
+    if (dernierItem != null) items.add(dernierItem);
+
+    try {
+      final colisCrees = await sl<EnvoyerColisLot>()(items);
+      if (mounted) {
+        showToast(
+          context,
+          '${colisCrees.length} colis envoyés !',
+          'Votre lot a été créé avec succès.',
+          ToastificationType.success,
+        );
+        try {
+          context.read<ColisBloc>().add(LoadColisEnvoyes());
+        } catch (_) {}
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        showToast(
+          context,
+          "Échec de l'envoi du lot",
+          'Une erreur est survenue. Veuillez réessayer.',
+          ToastificationType.error,
+        );
+      }
+    }
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -320,9 +453,18 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                child: _currentStep == 1
-                    ? _buildStep1Form()
-                    : _buildStep2Form(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_panier.isNotEmpty) ...[
+                      _buildPanierSummary(),
+                      const SizedBox(height: 20),
+                    ],
+                    _currentStep == 1
+                        ? _buildStep1Form()
+                        : _buildStep2Form(),
+                  ],
+                ),
               ),
             ),
             _buildButtons(),
@@ -414,6 +556,65 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           ),
         ),
       ],
+    );
+  }
+
+  // ── Panier (regroupement de colis) ───────────────────────────────────────
+  Widget _buildPanierSummary() {
+    final total = _panier.fold<double>(0, (sum, p) => sum + p.params.prix);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.inventory_2_rounded, size: 18, color: Color(0xFF2563EB)),
+              const SizedBox(width: 8),
+              Text(
+                'Lot en cours : ${_panier.length} colis',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF1E3A8A),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${total.toStringAsFixed(2)} €',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF2563EB),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...List.generate(_panier.length, (i) {
+            final item = _panier[i];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${item.destinataireNom} — ${item.paysNom} (${item.params.poids.toStringAsFixed(1)} kg)',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: const Color(0xFF1E3A8A)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _retirerDuPanier(i),
+                    child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF60A5FA)),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
@@ -1168,9 +1369,51 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
-      child: Row(
+      child: Column(
         children: [
-          if (_currentStep == 2) ...[
+          // Regroupement : mettre le colis actuel de côté pour en ajouter un
+          // autre, avant d'envoyer toute la commande groupée.
+          if (_currentStep == 2 && _selectedDestinataire != null) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: _ajouterAuPanier,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColor.kPrimary, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 18, color: AppColor.kPrimary),
+                label: Text(
+                  'Ajouter un autre colis au lot',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColor.kPrimary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          _buildMainButtonsRow(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainButtonsRow() {
+    final envoiLot = _currentStep == 2 && _panier.isNotEmpty;
+    // Ne relance jamais la validation du formulaire ici (build()) : juste un
+    // indicateur léger, sans effet de bord, pour annoncer que le colis en
+    // cours de saisie sera inclus automatiquement à l'envoi du lot.
+    final colisEnCoursInclus = _selectedDestinataire != null;
+    final tailleLotAffichee = _panier.length + (envoiLot && colisEnCoursInclus ? 1 : 0);
+    final labelPrincipal = _currentStep == 1
+        ? 'Continuer'
+        : (envoiLot ? 'Envoyer le lot ($tailleLotAffichee)' : 'Envoyer le colis');
+
+    return Row(
+      children: [
+        if (_currentStep == 2) ...[
             GestureDetector(
               onTap: _retour,
               child: Container(
@@ -1219,7 +1462,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _currentStep == 1 ? 'Continuer' : 'Envoyer le colis',
+                          labelPrincipal,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -1242,8 +1485,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

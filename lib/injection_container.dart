@@ -52,6 +52,8 @@ import 'features/home/data/repositories/colis_repository_impl.dart';
 import 'features/home/domain/repositories/colis_repository.dart';
 import 'features/home/domain/usecases/envoyer_colis.dart';
 import 'features/home/domain/usecases/get_colis_envoyes.dart';
+import 'features/home/domain/usecases/rechercher_colis_par_reference.dart';
+import 'features/home/domain/usecases/envoyer_colis_lot.dart';
 import 'features/home/domain/usecases/get_colis_recus.dart';
 import 'features/home/domain/usecases/get_statistiques_colis.dart';
 import 'features/home/domain/usecases/get_notifications.dart';
@@ -207,9 +209,11 @@ Future<void> init() async {
     () => ColisRepositoryImpl(remoteDataSource: sl()),
   );
   sl.registerLazySingleton(() => GetColisEnvoyes(sl()));
+  sl.registerLazySingleton(() => RechercherColisParReference(sl()));
   sl.registerLazySingleton(() => GetColisRecus(sl()));
   sl.registerLazySingleton(() => GetStatistiquesColis(sl()));
   sl.registerLazySingleton(() => EnvoyerColis(sl()));
+  sl.registerLazySingleton(() => EnvoyerColisLot(sl()));
   sl.registerLazySingleton(() => RechercherClient(sl()));
   sl.registerLazySingleton(() => GetNotifications(sl()));
   sl.registerLazySingleton(() => MarquerNotificationLue(sl()));

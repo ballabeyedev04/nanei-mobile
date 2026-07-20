@@ -31,8 +31,10 @@ class Env {
 
   // ── Colis ─────────────────────────────────────────────────────────────────
   static String get colisEnvoyer        => '/client/envoie-colis';
+  static String get colisEnvoyerLot     => '/client/envoie-colis-lot';
   static String get colisEnvoyes        => '/client/colis-envoyes';
   static String get colisRecus          => '/client/colis-recus';
+  static String colisRecherche(String reference) => '/client/colis-recherche/$reference';
   static String get colisStatistiques   => '/client/statistiques-colis';
   static String get colisNbEnvoyes      => '/client/nombre-coli-envoyer';
   static String get colisNbRecus        => '/client/nombre-coli-recu';

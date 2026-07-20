@@ -10,6 +10,7 @@ import '../../../domain/entities/colis.dart';
 import '../../widgets/colis_card.dart';
 import '../../widgets/empty_state.dart';
 import 'envoi_colis_page.dart';
+import 'lot_colis_page.dart';
 
 class ReceptionEnvoiPage extends StatefulWidget {
   final User? user;
@@ -37,6 +38,35 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Regroupe les colis d'un même envoi groupé (même lotId) sous une seule
+  /// entrée — la liste affiche alors le premier colis du lot comme
+  /// représentant, avec accès aux autres colis du lot séparément.
+  List<_ColisRegroupe> _regrouperParLot(List<Colis> colis) {
+    final Map<String, List<Colis>> parLot = {};
+    for (final c in colis) {
+      if (c.lotId != null) {
+        parLot.putIfAbsent(c.lotId!, () => []).add(c);
+      }
+    }
+
+    final result = <_ColisRegroupe>[];
+    final lotsDejaAjoutes = <String>{};
+    for (final c in colis) {
+      if (c.lotId == null) {
+        result.add(_ColisRegroupe(representant: c, tousLesColisDuLot: [c]));
+      } else if (!lotsDejaAjoutes.contains(c.lotId)) {
+        lotsDejaAjoutes.add(c.lotId!);
+        result.add(_ColisRegroupe(
+          representant: c,
+          tousLesColisDuLot: parLot[c.lotId]!,
+        ));
+      }
+      // Sinon : ce colis appartient à un lot déjà représenté, on ne
+      // l'affiche pas séparément dans la liste.
+    }
+    return result;
   }
 
   List<Colis> _applyFiltre(List<Colis> list, String filtre) {
@@ -376,18 +406,88 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
               : RefreshIndicator(
                   onRefresh: onRefresh,
                   color: AppColor.kPrimary,
-                  child: ListView.builder(
-                    padding:
-                        const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                    itemCount: filtered.length,
-                    itemBuilder: (_, i) => buildColisCard(
-                      colis: filtered[i],
-                      isReception: isReception,
-                    ),
-                  ),
+                  child: Builder(builder: (context) {
+                    final groupes = _regrouperParLot(filtered);
+                    return ListView.builder(
+                      padding:
+                          const EdgeInsets.fromLTRB(20, 0, 20, 110),
+                      itemCount: groupes.length,
+                      itemBuilder: (_, i) {
+                        final groupe = groupes[i];
+                        final estUnLot = groupe.tousLesColisDuLot.length > 1;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            buildColisCard(
+                              colis: groupe.representant,
+                              isReception: isReception,
+                            ),
+                            if (estUnLot)
+                              _buildLotBanner(context, groupe, isReception),
+                          ],
+                        );
+                      },
+                    );
+                  }),
                 ),
         ),
       ],
+    );
+  }
+
+  /// Petit message + bouton affiché sous la carte représentante d'un lot,
+  /// visible uniquement quand l'envoi regroupe plusieurs colis.
+  Widget _buildLotBanner(
+    BuildContext context,
+    _ColisRegroupe groupe,
+    bool isReception,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16, top: 0),
+      child: Container(
+        margin: const EdgeInsets.only(top: -4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFBFDBFE)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.inventory_2_rounded, size: 15, color: Color(0xFF2563EB)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Cet envoi est lié à plusieurs colis',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1E3A8A),
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => LotColisPage(
+                    colisDuLot: groupe.tousLesColisDuLot,
+                    isReception: isReception,
+                  ),
+                ),
+              ),
+              child: Text(
+                'Voir les autres colis',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF2563EB),
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -463,4 +563,15 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
       context.read<ColisBloc>().add(LoadColisEnvoyes());
     }
   }
+}
+
+/// Un colis représentant affiché dans la liste, avec l'ensemble des colis de
+/// son lot (taille 1 si le colis n'appartient à aucun envoi groupé).
+class _ColisRegroupe {
+  final Colis representant;
+  final List<Colis> tousLesColisDuLot;
+  const _ColisRegroupe({
+    required this.representant,
+    required this.tousLesColisDuLot,
+  });
 }

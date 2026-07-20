@@ -11,6 +11,7 @@ import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
 import '../../bloc/colis_state.dart';
 import 'envoi_colis_page.dart';
+import 'scan_colis_page.dart';
 
 class HomePage extends StatelessWidget {
   final User? user;
@@ -314,6 +315,20 @@ class HomePage extends StatelessWidget {
             iconColor: const Color(0xFF0EA5E9),
             iconBg: const Color(0xFFE0F2FE),
             onTap: () => showSupportSheet(context),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _actionCard(
+            context: context,
+            icon: Icons.qr_code_scanner_rounded,
+            label: 'Scanner',
+            sub: 'Ouvrir un colis',
+            iconColor: const Color(0xFF16A34A),
+            iconBg: const Color(0xFFDCFCE7),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ScanColisPage(user: user)),
+            ),
           ),
         ),
       ],

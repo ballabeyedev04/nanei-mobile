@@ -14,6 +14,7 @@ import '../models/country_pricing_model.dart';
 abstract class ColisRemoteDataSource {
   Future<List<Colis>> getColisEnvoyes();
   Future<List<Colis>> getColisRecus();
+  Future<Colis> rechercherColisParReference(String reference);
   Future<Map<String, int>> getStatistiques();
   Future<String?> envoyerColis({
     required String recepteurId,
@@ -23,6 +24,7 @@ abstract class ColisRemoteDataSource {
     required String typeColis,
     String? description,
   });
+  Future<List<Colis>> envoyerColisLot(List<Map<String, dynamic>> items);
   Future<List<ClientRecherche>> rechercherClient(String query);
   Future<List<NotificationModel>> getNotifications();
   Future<void> marquerNotificationLue(String id);
@@ -48,6 +50,12 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
     final response = await dio.get(Env.colisRecus);
     final List data = response.data['data'] ?? [];
     return data.map((e) => ColisModel.fromJson(e)).toList();
+  }
+
+  @override
+  Future<Colis> rechercherColisParReference(String reference) async {
+    final response = await dio.get(Env.colisRecherche(reference));
+    return ColisModel.fromJson(response.data['data']);
   }
 
   @override
@@ -85,6 +93,19 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
       throw Exception('Erreur envoi colis');
     }
     return response.data?['data']?['reference'] as String?;
+  }
+
+  @override
+  Future<List<Colis>> envoyerColisLot(List<Map<String, dynamic>> items) async {
+    final response = await dio.post(
+      Env.colisEnvoyerLot,
+      data: {'colis': items},
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Erreur envoi du lot de colis');
+    }
+    final List data = response.data?['colis'] ?? [];
+    return data.map((e) => ColisModel.fromJson(e)).toList();
   }
 
   @override
