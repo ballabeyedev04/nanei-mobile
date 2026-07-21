@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:nanei/core/theme/app_color.dart';
 import 'package:nanei/core/utils/security_validators.dart';
+import 'package:nanei/core/extensions/double_extensions.dart';
 import '../bloc/paiement_bloc.dart';
 import '../bloc/paiement_event.dart';
 import '../bloc/paiement_state.dart';
@@ -291,7 +292,7 @@ class _PaiementCard extends StatelessWidget {
             Text('Montant', style: GoogleFonts.plusJakartaSans(
               fontSize: 11, color: const Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
             const SizedBox(height: 2),
-            Text('${paiement.prixTotal.toStringAsFixed(2)} €',
+            Text(paiement.prixTotal.toEurFcfa(),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF111827))),
           ]),
@@ -301,7 +302,7 @@ class _PaiementCard extends StatelessWidget {
               Text('Payé', style: GoogleFonts.plusJakartaSans(
                 fontSize: 11, color: const Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
               const SizedBox(height: 2),
-              Text('${paiement.montantPaye.toStringAsFixed(2)} €',
+              Text(paiement.montantPaye.toEurFcfa(),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF22C55E))),
               if (_moyenLabel.isNotEmpty) ...[

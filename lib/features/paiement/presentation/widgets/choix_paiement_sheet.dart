@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/extensions/double_extensions.dart';
 
 class ChoixPaiementSheet extends StatefulWidget {
   final String reference;
@@ -71,7 +72,7 @@ class _ChoixPaiementSheetState extends State<ChoixPaiementSheet>
                 TextSpan(text: widget.reference,
                   style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 const TextSpan(text: ' · '),
-                TextSpan(text: '${widget.montant.toStringAsFixed(2)} €',
+                TextSpan(text: widget.montant.toEurFcfa(),
                   style: const TextStyle(fontWeight: FontWeight.w800, color: AppColor.kPrimary)),
               ],
             )),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -10,6 +12,7 @@ import 'package:toastification/toastification.dart';
 import 'core/observers/app_bloc_observer.dart';
 import 'core/routes/app_router.dart';
 import 'core/services/fcm_service.dart';
+import 'core/services/taux_change_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
 import 'core/theme/theme_notifier.dart';
@@ -38,6 +41,11 @@ void main() async {
 
   await dotenv.load(fileName: '.env');
   await di.init();
+
+  // Taux EUR -> FCFA pour l'affichage double devise — ne bloque pas le
+  // démarrage : un fallback fixe est déjà utilisé tant que la requête
+  // n'a pas abouti (voir TauxChangeService).
+  unawaited(di.sl<TauxChangeService>().charger());
 
   // ── Firebase + Crashlytics ────────────────────────────────────────────────
   try {

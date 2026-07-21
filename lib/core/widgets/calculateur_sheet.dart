@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_color.dart';
+import '../../core/extensions/double_extensions.dart';
 import '../../injection_container.dart';
 import '../../features/home/domain/entities/country_pricing.dart';
 import '../../features/home/domain/usecases/get_countries.dart';
@@ -357,7 +358,7 @@ class _CalculateurSheetState extends State<_CalculateurSheet> {
                                 ),
                               ),
                               Text(
-                                '${pkgPrice.toStringAsFixed(0)} €/kg',
+                                pkgPrice.toEurFcfaPerKg(),
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11,
                                   color: selected
@@ -490,7 +491,7 @@ class _CalculateurSheetState extends State<_CalculateurSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${_prixEstime!.toStringAsFixed(2)} €',
+                  _prixEstime!.toEurFcfa(),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
@@ -501,7 +502,7 @@ class _CalculateurSheetState extends State<_CalculateurSheet> {
                 const SizedBox(height: 6),
                 Text(
                   '${_selectedCountry!.name}  ·  ${poids.toStringAsFixed(1)} kg'
-                  '  ·  ${_pricePerKg?.toStringAsFixed(2) ?? '—'} €/kg'
+                  '  ·  ${_pricePerKg != null ? _pricePerKg!.toEurFcfaPerKg(decimals: 2) : '—'}'
                   '  ·  ${_selectedType ?? ''}',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,

@@ -91,4 +91,7 @@ class Env {
   // ── Paiements ─────────────────────────────────────────────────────────────
   static String get paiements                       => '/paiements';
   static String paiementInitier(String colisId)     => '/paiements/$colisId/initier';
+
+  // ── Taux de change (affichage double devise EUR/FCFA) ───────────────────
+  static String get tauxChange => '/pricing/taux-change';
 }

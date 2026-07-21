@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/config/env.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/extensions/double_extensions.dart';
 import 'package:nanei/features/avis/presentation/cubit/avis_cubit.dart';
 import 'package:nanei/features/avis/presentation/widgets/rating_dialog.dart';
 import 'package:nanei/features/avis/presentation/widgets/star_rating.dart';
@@ -206,7 +207,7 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${colis.poids} kg · ${colis.prix.toStringAsFixed(0)} FCFA · ${colis.type}',
+            '${colis.poids} kg · ${colis.prix.toEurFcfa(decimals: 0)} · ${colis.type}',
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 13, color: AppColor.kGrayscale40),
           ),

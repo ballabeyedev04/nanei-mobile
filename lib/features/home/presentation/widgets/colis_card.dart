@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/extensions/double_extensions.dart';
 import '../../domain/entities/colis.dart';
 import '../../domain/entities/personne.dart';
 
@@ -312,7 +313,7 @@ Widget buildColisCard({required Colis colis, required bool isReception}) {
                         const SizedBox(width: 14),
                         _meta(
                           icon: Icons.euro_rounded,
-                          label: '${colis.prix.toStringAsFixed(0)} €',
+                          label: colis.prix.toEurFcfa(decimals: 0),
                           color: const Color(0xFF059669),
                         ),
                         const Spacer(),

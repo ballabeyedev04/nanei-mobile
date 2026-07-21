@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:toastification/toastification.dart';
 import 'dart:async';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/extensions/double_extensions.dart';
 import 'package:nanei/core/widgets/app_toast.dart';
 import 'package:nanei/core/widgets/toastNotif.dart';
 import '../../bloc/colis_bloc.dart';
@@ -584,7 +585,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
               ),
               const Spacer(),
               Text(
-                '${total.toStringAsFixed(2)} €',
+                total.toEurFcfa(),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF2563EB),
                 ),
@@ -825,7 +826,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${pricePerKg.toStringAsFixed(0)} €/kg',
+                    pricePerKg.toEurFcfaPerKg(),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: isSelected
@@ -865,7 +866,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
             ),
           ),
           Text(
-            '${shipping.toStringAsFixed(2)} €',
+            shipping.toEurFcfa(),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w800,
@@ -874,7 +875,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           ),
           const Spacer(),
           Text(
-            '${_pricePerKg.toStringAsFixed(0)} €/kg',
+            _pricePerKg.toEurFcfaPerKg(),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11,
               color: AppColor.kGrayscale40,
@@ -1091,7 +1092,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                     Text(
                       prix == 0
                           ? 'Tarif non disponible'
-                          : '+${prix.toStringAsFixed(2)} €',
+                          : '+${prix.toEurFcfa()}',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -1200,7 +1201,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                   _recapRow(
                     Icons.local_shipping_outlined,
                     'Frais transport',
-                    '${shipping.toStringAsFixed(2)} €',
+                    shipping.toEurFcfa(),
                     AppColor.kGrayscale60,
                   ),
                   if (_needsPickup && _pickupPrice > 0) ...[
@@ -1208,7 +1209,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                     _recapRow(
                       Icons.home_outlined,
                       'Récupération',
-                      '+${_pickupPrice.toStringAsFixed(2)} €',
+                      '+${_pickupPrice.toEurFcfa()}',
                       const Color(0xFFD97706),
                     ),
                   ],
@@ -1217,7 +1218,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                     _recapRow(
                       Icons.delivery_dining_outlined,
                       'Livraison',
-                      '+${_deliveryPrice.toStringAsFixed(2)} €',
+                      '+${_deliveryPrice.toEurFcfa()}',
                       const Color(0xFFD97706),
                     ),
                   ],
@@ -1237,7 +1238,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                       ),
                       const Spacer(),
                       Text(
-                        '${total.toStringAsFixed(2)} €',
+                        total.toEurFcfa(),
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,

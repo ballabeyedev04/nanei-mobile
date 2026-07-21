@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/env.dart';
 import 'core/services/token_service.dart';
+import 'core/services/taux_change_service.dart';
 import 'core/network/retry_interceptor.dart';
 import 'core/utils/dio_logger_interceptor.dart';
 import 'core/theme/theme_notifier.dart';
@@ -187,6 +188,8 @@ Future<void> init() async {
 
     return dio;
   });
+
+  sl.registerLazySingleton(() => TauxChangeService(sl()));
 
   // ── Feature : Auth ─────────────────────────────────────────────────────────
   sl.registerLazySingleton<AuthRemoteDataSource>(
