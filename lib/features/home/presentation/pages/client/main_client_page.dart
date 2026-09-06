@@ -1,3 +1,6 @@
+import '../../../../../core/services/verrou_biometrique.dart';
+import '../../../../../core/widgets/proposer_verrou_biometrique.dart';
+import '../../../../../injection_container.dart' as di;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -48,6 +51,17 @@ class _MainClientPageState extends State<MainClientPage>
       ),
     );
     _controllers[0].forward();
+
+    // Proposition du déverrouillage rapide, une seule fois.
+    //
+    // Ici et non sur l'écran de connexion : celui-ci se referme aussitôt la
+    // session ouverte, un dialogue lancé depuis lui serait démonté avec lui.
+    // Cette page est le premier écran durable après la connexion — et aussi
+    // celui où retombe un utilisateur dont la session a été restaurée, qui
+    // doit recevoir l'offre lui aussi.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) proposerVerrouBiometrique(context, di.sl<VerrouBiometrique>());
+    });
   }
 
   @override

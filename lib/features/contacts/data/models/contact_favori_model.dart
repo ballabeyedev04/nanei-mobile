@@ -19,7 +19,8 @@ class ContactFavoriModel extends ContactFavori {
       email: json['email']?.toString(),
       telephone: json['telephone']?.toString() ?? '',
       ville: json['ville']?.toString(),
-      pays: json['pays']?.toString(),
+      // Backend : colonne `pays_id`. On tolère `pays`.
+      pays: (json['pays_id'] ?? json['pays'])?.toString(),
     );
   }
 

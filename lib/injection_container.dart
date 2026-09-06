@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/env.dart';
 import 'core/services/token_service.dart';
+import 'core/services/verrou_biometrique.dart';
 import 'core/services/taux_change_service.dart';
 import 'core/network/retry_interceptor.dart';
 import 'core/utils/dio_logger_interceptor.dart';
@@ -62,6 +63,8 @@ import 'features/home/domain/usecases/marquer_notification_lue.dart';
 import 'features/home/domain/usecases/rechercher_client.dart';
 import 'features/home/domain/usecases/get_countries.dart';
 import 'features/home/domain/usecases/get_pricing_by_country.dart';
+import 'features/home/domain/usecases/calculer_prix.dart';
+import 'features/home/domain/usecases/suivi_public_par_reference.dart';
 import 'features/home/presentation/bloc/colis_bloc.dart';
 
 // Paiement
@@ -89,6 +92,11 @@ Future<void> init() async {
 
   // ── Core ───────────────────────────────────────────────────────────────────
   sl.registerLazySingleton(() => TokenService(secureStorage: sl()));
+
+  // Verrou d'ouverture (empreinte / visage / code de l'appareil). Singleton :
+  // le voile de verrouillage et l'écran de profil doivent lire et écrire le
+  // MÊME état, sans quoi l'interrupteur du profil n'aurait aucun effet visible.
+  sl.registerLazySingleton(() => VerrouBiometrique(prefs: sl()));
 
   // Certificate pinning — chargement du CA cert en mémoire une seule fois.
   // Si le cert change côté backend (renouvellement), le chargement échoue
@@ -222,6 +230,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => MarquerNotificationLue(sl()));
   sl.registerLazySingleton(() => GetCountries(sl()));
   sl.registerLazySingleton(() => GetPricingByCountry(sl()));
+  sl.registerLazySingleton(() => CalculerPrix(sl()));
+  sl.registerLazySingleton(() => SuiviPublicParReference(sl()));
   // ── Feature : Paiement ────────────────────────────────────────────────────
   sl.registerLazySingleton<PaiementRemoteDataSource>(
     () => PaiementRemoteDataSourceImpl(dio: sl()),

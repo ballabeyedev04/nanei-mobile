@@ -87,17 +87,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final tokenService = sl<TokenService>();
       final storage = sl<FlutterSecureStorage>();
 
-      // Appel backend best-effort (token révocation)
-      final refreshToken = await storage.read(key: StorageKeys.refreshToken);
-      if (refreshToken != null) {
-        try {
-          await sl<Dio>().post(
-            Env.authLogout,
-            data: {'refreshToken': refreshToken},
-          );
-        } catch (_) {
-          // Ignore — on déconnecte localement quoi qu'il arrive
-        }
+      // Appel backend best-effort : révoque le refresh token côté serveur.
+      // On tente l'appel même sans refresh token stocké (le backend
+      // l'accepte comme optionnel) pour rester robuste.
+      final refreshToken = await sl<TokenService>().getRefreshToken();
+      try {
+        await sl<Dio>().post(
+          Env.authLogout,
+          data: {'refreshToken': refreshToken ?? ''},
+        );
+      } catch (_) {
+        // Ignore — on déconnecte localement quoi qu'il arrive
       }
 
       await tokenService.clearToken();

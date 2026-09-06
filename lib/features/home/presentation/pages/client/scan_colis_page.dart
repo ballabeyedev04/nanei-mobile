@@ -8,6 +8,7 @@ import 'package:nanei/injection_container.dart';
 import '../../../domain/usecases/rechercher_colis_par_reference.dart';
 import 'colis_detail_page.dart';
 import 'suivi_page.dart' show state_isReception;
+import 'suivi_public_sheet.dart';
 
 /// Scanner le QR code d'une étiquette pour ouvrir directement la fiche du
 /// colis correspondant, sans avoir à le chercher dans la liste. Le QR code
@@ -154,6 +155,28 @@ class _ScanColisPageState extends State<ScanColisPage> {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () => showSuiviPublicSheet(context),
+                  icon: const Icon(Icons.keyboard_rounded,
+                      size: 18, color: Colors.white),
+                  label: Text(
+                    'Saisir la référence manuellement',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ],

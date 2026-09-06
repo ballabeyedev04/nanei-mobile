@@ -16,6 +16,7 @@ import '../../../domain/usecases/envoyer_colis_lot.dart';
 import '../../../domain/usecases/rechercher_client.dart';
 import '../../../domain/usecases/get_countries.dart';
 import '../../../domain/usecases/get_pricing_by_country.dart';
+import '../../../domain/usecases/calculer_prix.dart';
 import 'package:nanei/injection_container.dart';
 
 class EnvoiColisPage extends StatefulWidget {
@@ -79,8 +80,24 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   // ── Destinataire ─────────────────────────────────────────────────────────
   List<ClientRecherche> _resultatsRecherche = [];
   ClientRecherche? _selectedDestinataire;
+  // Destinataire saisi manuellement (personne sans compte). Exclusif avec
+  // _selectedDestinataire.
+  DestinataireManuel? _destinataireManuel;
   bool _isLoadingRecherche = false;
   Timer? _debounceTimer;
+
+  bool get _hasDestinataire =>
+      _selectedDestinataire != null || _destinataireManuel != null;
+
+  String get _destinataireNomAffiche {
+    if (_selectedDestinataire != null) {
+      return '${_selectedDestinataire!.prenom} ${_selectedDestinataire!.nom}'.trim();
+    }
+    if (_destinataireManuel != null) {
+      return '${_destinataireManuel!.prenom} ${_destinataireManuel!.nom}'.trim();
+    }
+    return '';
+  }
 
   // ── Calcul prix ──────────────────────────────────────────────────────────
   double get _pricePerKg {
@@ -235,6 +252,15 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
       final query = _rechercheController.text.trim();
+
+      // Un destinataire manuel est sélectionné : tant que le texte n'est pas
+      // modifié, on ne relance pas de recherche. S'il est modifié, on annule
+      // la sélection manuelle et on repart sur une recherche classique.
+      if (_destinataireManuel != null) {
+        if (query == _destinataireNomAffiche) return;
+        setState(() => _destinataireManuel = null);
+      }
+
       if (query.isEmpty) {
         setState(() => _resultatsRecherche = []);
         return;
@@ -270,6 +296,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     setState(() {
       _currentStep = 1;
       _selectedDestinataire = null;
+      _destinataireManuel = null;
       _rechercheController.clear();
       _resultatsRecherche = [];
     });
@@ -278,13 +305,14 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   /// Construit les paramètres du colis actuellement affiché à l'écran, si le
   /// formulaire est valide — null sinon (ex: pas de destinataire sélectionné).
   EnvoyerColisParams? _buildCurrentParams() {
-    if (_selectedDestinataire == null) return null;
+    if (!_hasDestinataire) return null;
     if (_selectedCountry == null) return null;
     if (!(_formKeyStep2.currentState?.validate() ?? false)) return null;
 
     final double poids = double.tryParse(_poidsController.text) ?? 0.0;
     return EnvoyerColisParams(
-      recepteurId: _selectedDestinataire!.id,
+      recepteurId: _selectedDestinataire?.id,
+      destinataireManuel: _destinataireManuel,
       poids: poids,
       prix: _totalEstime,
       destination: _selectedCountry!.name,
@@ -306,6 +334,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
       _needsPickup = false;
       _needsDelivery = false;
       _selectedDestinataire = null;
+      _destinataireManuel = null;
       _rechercheController.clear();
       _resultatsRecherche = [];
       _typeController.clear();
@@ -317,15 +346,14 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   /// Ajoute le colis actuellement configuré au lot, puis réinitialise le
   /// formulaire pour permettre la saisie d'un colis supplémentaire.
   void _ajouterAuPanier() {
-    if (_selectedDestinataire == null) {
-      showErrorToast(context, 'Veuillez sélectionner un destinataire.');
+    if (!_hasDestinataire) {
+      showErrorToast(context, 'Veuillez sélectionner ou ajouter un destinataire.');
       return;
     }
     final params = _buildCurrentParams();
     if (params == null) return;
 
-    final nomDestinataire =
-        '${_selectedDestinataire!.prenom} ${_selectedDestinataire!.nom}'.trim();
+    final nomDestinataire = _destinataireNomAffiche;
 
     setState(() {
       _panier.add(_PanierItem(
@@ -347,6 +375,27 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     setState(() => _panier.removeAt(index));
   }
 
+  /// Prix total via le calcul serveur (`POST /pricing/calculate`). En cas
+  /// d'échec (réseau, tarif serveur indisponible…) on retombe sur
+  /// l'estimation locale [_totalEstime] pour ne jamais bloquer l'envoi.
+  Future<double> _resoudrePrixServeur(double poids) async {
+    if (_selectedCountry == null || _selectedShippingType == null) {
+      return _totalEstime;
+    }
+    try {
+      final r = await sl<CalculerPrix>()(
+        countryId: _selectedCountry!.id,
+        weight: poids,
+        shippingType: _selectedShippingType!,
+        needsPickup: _needsPickup,
+        needsDelivery: _needsDelivery,
+      );
+      return r.total > 0 ? r.total : _totalEstime;
+    } catch (_) {
+      return _totalEstime;
+    }
+  }
+
   void _envoyer() async {
     // ── Regroupement : un lot est déjà constitué, on envoie tout d'un coup ──
     if (_panier.isNotEmpty) {
@@ -354,18 +403,21 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
       return;
     }
 
-    if (_selectedDestinataire == null) {
-      showErrorToast(context, 'Veuillez sélectionner un destinataire.');
+    if (!_hasDestinataire) {
+      showErrorToast(context, 'Veuillez sélectionner ou ajouter un destinataire.');
       return;
     }
     if (!_formKeyStep2.currentState!.validate()) return;
 
     final double poids = double.tryParse(_poidsController.text) ?? 0.0;
-    final double total = _totalEstime;
+    // Prix de référence : calcul serveur (source de vérité), repli sur le
+    // calcul local si l'appel échoue.
+    final double total = await _resoudrePrixServeur(poids);
 
     try {
       final reference = await sl<EnvoyerColis>()(EnvoyerColisParams(
-        recepteurId: _selectedDestinataire!.id,
+        recepteurId: _selectedDestinataire?.id,
+        destinataireManuel: _destinataireManuel,
         poids: poids,
         prix: total,
         destination: _selectedCountry!.name,
@@ -375,8 +427,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
             : _descriptionController.text.trim(),
       ));
       if (mounted) {
-        final nomRecepteur =
-            '${_selectedDestinataire!.prenom} ${_selectedDestinataire!.nom}'.trim();
+        final nomRecepteur = _destinataireNomAffiche;
         final titre = reference != null
             ? 'Colis #$reference envoyé !'
             : 'Colis envoyé avec succès !';
@@ -900,18 +951,38 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           // Recherche destinataire
           _label('Rechercher le destinataire'),
           const SizedBox(height: 8),
-          TextFormField(
-            controller: _rechercheController,
-            focusNode: _rechercheFocus,
-            style: _textStyle(),
-            decoration: _inputDeco(
-              hint: 'Nom, prénom, email...',
-              icon: Icons.search_rounded,
-              focused: _rechercheFocused,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _rechercheController,
+                  focusNode: _rechercheFocus,
+                  style: _textStyle(),
+                  decoration: _inputDeco(
+                    hint: 'Nom, prénom, email...',
+                    icon: Icons.search_rounded,
+                    focused: _rechercheFocused,
+                  ),
+                  validator: (_) => _hasDestinataire
+                      ? null
+                      : 'Veuillez sélectionner ou ajouter un destinataire',
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildAjoutDestinataireButton(),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Le destinataire n'a pas de compte ? Utilisez « + Ajouter destinataire ».",
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                color: AppColor.kGrayscale40,
+              ),
             ),
-            validator: (_) => _selectedDestinataire == null
-                ? 'Veuillez sélectionner un destinataire'
-                : null,
           ),
 
           if (_isLoadingRecherche)
@@ -1021,7 +1092,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
               ),
             ),
 
-          if (_selectedDestinataire != null) ...[
+          if (_hasDestinataire) ...[
             const SizedBox(height: 12),
             _buildDestinataireCard(),
           ],
@@ -1291,10 +1362,19 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   }
 
   Widget _buildDestinataireCard() {
-    final d = _selectedDestinataire!;
+    final bool estManuel = _destinataireManuel != null;
+    final String nom = estManuel ? _destinataireManuel!.nom : _selectedDestinataire!.nom;
+    final String prenom =
+        estManuel ? _destinataireManuel!.prenom : _selectedDestinataire!.prenom;
+    final String sousTitre = estManuel
+        ? (_destinataireManuel!.telephone.isNotEmpty
+            ? _destinataireManuel!.telephone
+            : (_destinataireManuel!.email ?? ''))
+        : _selectedDestinataire!.email;
     final initiale =
-        '${d.nom.isNotEmpty ? d.nom[0] : ''}${d.prenom.isNotEmpty ? d.prenom[0] : ''}'
+        '${nom.isNotEmpty ? nom[0] : ''}${prenom.isNotEmpty ? prenom[0] : ''}'
             .toUpperCase();
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1326,43 +1406,148 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${d.nom} ${d.prenom}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF065F46),
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '$nom $prenom',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF065F46),
+                        ),
+                      ),
+                    ),
+                    if (estManuel) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF059669),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Pas encore de compte',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                Text(
-                  d.email,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: const Color(0xFF059669),
+                if (sousTitre.isNotEmpty)
+                  Text(
+                    sousTitre,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: const Color(0xFF059669),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
-          GestureDetector(
-            onTap: () => setState(() {
-              _selectedDestinataire = null;
-              _rechercheController.clear();
-            }),
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (estManuel)
+                GestureDetector(
+                  onTap: _ouvrirModalAjoutDestinataire,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.edit_outlined,
+                        size: 15, color: Color(0xFF065F46)),
+                  ),
+                ),
+              GestureDetector(
+                onTap: () => setState(() {
+                  _selectedDestinataire = null;
+                  _destinataireManuel = null;
+                  _rechercheController.clear();
+                }),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      size: 16, color: Color(0xFF065F46)),
+                ),
               ),
-              child: const Icon(Icons.close_rounded,
-                  size: 16, color: Color(0xFF065F46)),
-            ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  // ── Ajout d'un destinataire sans compte ─────────────────────────────────
+  Widget _buildAjoutDestinataireButton() {
+    return SizedBox(
+      height: 54,
+      child: OutlinedButton(
+        onPressed: _ouvrirModalAjoutDestinataire,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          side: const BorderSide(color: AppColor.kPrimary, width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person_add_alt_1_rounded,
+                size: 16, color: AppColor.kPrimary),
+            const SizedBox(width: 6),
+            Text(
+              'Ajouter\ndestinataire',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+                color: AppColor.kPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _ouvrirModalAjoutDestinataire() async {
+    final result = await showModalBottomSheet<DestinataireManuel>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AjoutDestinataireSheet(
+        paysNom: _selectedCountry?.name,
+        paysId: _selectedCountry?.id,
+        initial: _destinataireManuel,
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _destinataireManuel = result;
+        _selectedDestinataire = null;
+        _resultatsRecherche = [];
+        _rechercheController.text = '${result.nom} ${result.prenom}'.trim();
+      });
+      _rechercheFocus.unfocus();
+    }
   }
 
   // ── Boutons navigation ────────────────────────────────────────────────────
@@ -1374,7 +1559,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         children: [
           // Regroupement : mettre le colis actuel de côté pour en ajouter un
           // autre, avant d'envoyer toute la commande groupée.
-          if (_currentStep == 2 && _selectedDestinataire != null) ...[
+          if (_currentStep == 2 && _hasDestinataire) ...[
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -1406,7 +1591,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     // Ne relance jamais la validation du formulaire ici (build()) : juste un
     // indicateur léger, sans effet de bord, pour annoncer que le colis en
     // cours de saisie sera inclus automatiquement à l'envoi du lot.
-    final colisEnCoursInclus = _selectedDestinataire != null;
+    final colisEnCoursInclus = _hasDestinataire;
     final tailleLotAffichee = _panier.length + (envoiLot && colisEnCoursInclus ? 1 : 0);
     final labelPrincipal = _currentStep == 1
         ? 'Continuer'
@@ -1786,6 +1971,300 @@ class _PaysItem extends StatelessWidget {
                     size: 14, color: Colors.white),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Modal : ajout d'un destinataire sans compte ──────────────────────────────
+
+class _AjoutDestinataireSheet extends StatefulWidget {
+  final String? paysNom;
+  final String? paysId;
+  final DestinataireManuel? initial;
+
+  const _AjoutDestinataireSheet({
+    this.paysNom,
+    this.paysId,
+    this.initial,
+  });
+
+  @override
+  State<_AjoutDestinataireSheet> createState() =>
+      _AjoutDestinataireSheetState();
+}
+
+class _AjoutDestinataireSheetState extends State<_AjoutDestinataireSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _prenom;
+  late final TextEditingController _nom;
+  late final TextEditingController _telephone;
+  late final TextEditingController _email;
+  late final TextEditingController _ville;
+
+  @override
+  void initState() {
+    super.initState();
+    _prenom = TextEditingController(text: widget.initial?.prenom ?? '');
+    _nom = TextEditingController(text: widget.initial?.nom ?? '');
+    _telephone = TextEditingController(text: widget.initial?.telephone ?? '');
+    _email = TextEditingController(text: widget.initial?.email ?? '');
+    _ville = TextEditingController(text: widget.initial?.ville ?? '');
+  }
+
+  @override
+  void dispose() {
+    _prenom.dispose();
+    _nom.dispose();
+    _telephone.dispose();
+    _email.dispose();
+    _ville.dispose();
+    super.dispose();
+  }
+
+  void _valider() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.of(context).pop(
+      DestinataireManuel(
+        prenom: _prenom.text.trim(),
+        nom: _nom.text.trim(),
+        telephone: _telephone.text.trim(),
+        email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+        ville: _ville.text.trim().isEmpty ? null : _ville.text.trim(),
+        paysId: widget.paysId,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Ajouter un destinataire',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColor.kGrayscaleDark100,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Pour une personne qui n'a pas encore de compte. "
+                    'Elle recevra une notification et retrouvera ses colis '
+                    "en s'inscrivant avec ce numéro.",
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: AppColor.kGrayscale40,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  _champLabel('Prénom'),
+                  _champ(
+                    controller: _prenom,
+                    hint: 'Ex: Awa',
+                    icon: Icons.badge_outlined,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Le prénom est requis'
+                        : null,
+                  ),
+                  const SizedBox(height: 14),
+
+                  _champLabel('Nom'),
+                  _champ(
+                    controller: _nom,
+                    hint: 'Ex: Diallo',
+                    icon: Icons.badge_outlined,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Le nom est requis'
+                        : null,
+                  ),
+                  const SizedBox(height: 14),
+
+                  _champLabel('Téléphone'),
+                  _champ(
+                    controller: _telephone,
+                    hint: 'Ex: +223 70 00 00 00',
+                    icon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Le téléphone est requis';
+                      }
+                      if (v.trim().length < 6) {
+                        return 'Numéro invalide';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  _champLabel('Email (optionnel)'),
+                  _champ(
+                    controller: _email,
+                    hint: 'Ex: awa@email.com',
+                    icon: Icons.mail_outline_rounded,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null;
+                      final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                          .hasMatch(v.trim());
+                      return ok ? null : 'Email invalide';
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  _champLabel('Ville (optionnel)'),
+                  _champ(
+                    controller: _ville,
+                    hint: 'Ex: Bamako',
+                    icon: Icons.location_city_outlined,
+                  ),
+                  const SizedBox(height: 14),
+
+                  _champLabel('Pays'),
+                  Container(
+                    height: 52,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.flag_outlined,
+                            size: 18, color: AppColor.kGrayscale40),
+                        const SizedBox(width: 10),
+                        Text(
+                          widget.paysNom ?? 'Non défini',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColor.kGrayscaleDark100,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _valider,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColor.kPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(
+                        'Valider le destinataire',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _champLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: AppColor.kGrayscale80,
+          ),
+        ),
+      );
+
+  Widget _champ({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: AppColor.kGrayscaleDark100,
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          color: AppColor.kGrayscale20,
+          fontWeight: FontWeight.w400,
+        ),
+        prefixIcon: Icon(icon, size: 20, color: AppColor.kGrayscale40),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColor.kLine, width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColor.kPrimary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+        ),
+        errorStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 11.5,
+          color: Colors.redAccent,
         ),
       ),
     );

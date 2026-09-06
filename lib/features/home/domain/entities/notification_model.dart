@@ -42,9 +42,10 @@ class NotificationModel {
       expediteurNom: json['expediteur']?['nom'] ?? '',
       expediteurPrenom: json['expediteur']?['prenom'] ?? '',
       expediteurEmail: json['expediteur']?['email'] ?? '',
-      date: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : DateTime.now(),
+      // Backend Sequelize : attribut `createdAt` (camel). On tolère `created_at`.
+      date: DateTime.tryParse(
+              (json['createdAt'] ?? json['created_at'] ?? '').toString()) ??
+          DateTime.now(),
       lue: (json['statut'] ?? 'non_lu') == 'lu',
     );
   }

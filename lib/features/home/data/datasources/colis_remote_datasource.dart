@@ -8,6 +8,10 @@ import '../models/colis_model.dart';
 import '../models/client_recherche_model.dart';
 import '../models/notification_model.dart' as nm;
 import '../models/country_pricing_model.dart';
+import '../models/prix_calcule_model.dart';
+import '../../domain/entities/prix_calcule.dart';
+import '../../domain/entities/suivi_public.dart';
+import '../models/suivi_public_model.dart';
 
 // ── Interface ─────────────────────────────────────────────────────────────────
 
@@ -17,7 +21,8 @@ abstract class ColisRemoteDataSource {
   Future<Colis> rechercherColisParReference(String reference);
   Future<Map<String, int>> getStatistiques();
   Future<String?> envoyerColis({
-    required String recepteurId,
+    String? recepteurId,
+    Map<String, dynamic>? destinataireManuel,
     required double poids,
     required double prix,
     required String destination,
@@ -30,6 +35,18 @@ abstract class ColisRemoteDataSource {
   Future<void> marquerNotificationLue(String id);
   Future<List<CountryItem>> getCountries();
   Future<CountryPricing> getPricingByCountry(String countryId);
+
+  /// Calcul de prix côté serveur — POST /pricing/calculate
+  Future<PrixCalcule> calculerPrix({
+    required String countryId,
+    required double weight,
+    required String shippingType,
+    bool needsPickup,
+    bool needsDelivery,
+  });
+
+  /// Suivi public d'un colis par référence — GET /suivi/:reference?format=json
+  Future<SuiviPublic> suiviPublicParReference(String reference);
 }
 
 // ── Implémentation ────────────────────────────────────────────────────────────
@@ -71,7 +88,8 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
 
   @override
   Future<String?> envoyerColis({
-    required String recepteurId,
+    String? recepteurId,
+    Map<String, dynamic>? destinataireManuel,
     required double poids,
     required double prix,
     required String destination,
@@ -81,7 +99,10 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
     final response = await dio.post(
       Env.colisEnvoyer,
       data: {
-        'recepteurId': recepteurId,
+        if (destinataireManuel != null)
+          'destinataireManuel': destinataireManuel
+        else
+          'recepteurId': recepteurId,
         'poids': poids,
         'prix': prix,
         'destination': destination,
@@ -92,7 +113,11 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
     if (response.statusCode != 201) {
       throw Exception('Erreur envoi colis');
     }
-    return response.data?['data']?['reference'] as String?;
+    // Backend : { message, colis: { reference, ... } }. On tolère aussi 'data'.
+    final body = response.data as Map<String, dynamic>? ?? const {};
+    final colis =
+        (body['colis'] ?? body['data']) as Map<String, dynamic>?;
+    return colis?['reference'] as String?;
   }
 
   @override
@@ -142,5 +167,42 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
   Future<CountryPricing> getPricingByCountry(String countryId) async {
     final response = await dio.get(Env.clientPricing(countryId));
     return CountryPricingModel.fromJson(response.data['data'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<PrixCalcule> calculerPrix({
+    required String countryId,
+    required double weight,
+    required String shippingType,
+    bool needsPickup = false,
+    bool needsDelivery = false,
+  }) async {
+    final response = await dio.post(
+      Env.pricingCalculate,
+      data: {
+        'countryId': countryId,
+        'weight': weight,
+        'shippingType': shippingType,
+        'needsPickup': needsPickup,
+        'needsDelivery': needsDelivery,
+      },
+    );
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data == null) {
+      throw Exception('Réponse de calcul de prix invalide');
+    }
+    return PrixCalculeModel.fromJson(data);
+  }
+
+  @override
+  Future<SuiviPublic> suiviPublicParReference(String reference) async {
+    // Endpoint public (pas d'auth). baseUrl est déjà inclus dans le helper.
+    final response = await dio.get(Env.suiviPublicJson(reference));
+    final data = response.data as Map<String, dynamic>;
+    final colis = data['colis'] as Map<String, dynamic>?;
+    if (colis == null) {
+      throw Exception('Colis introuvable');
+    }
+    return SuiviPublicModel.fromJson(colis);
   }
 }

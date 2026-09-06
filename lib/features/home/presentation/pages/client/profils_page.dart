@@ -1,3 +1,5 @@
+import '../../../../../core/services/verrou_biometrique.dart';
+import '../../../../../injection_container.dart' as di;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -79,6 +81,40 @@ class _ProfilsPageState extends State<ProfilsPage>
     return '$prenom $nom'.trim();
   }
 
+  final VerrouBiometrique _verrou = di.sl<VerrouBiometrique>();
+
+  /// Bascule le verrou d'ouverture.
+  ///
+  /// `definirActif` demande l'authentification AVANT d'écrire le réglage,
+  /// dans les deux sens : activer sans preuve poserait un verrou que le
+  /// propriétaire ne saurait pas franchir, et désactiver sans preuve le
+  /// rendrait contournable en deux touchers sur un téléphone trouvé
+  /// déverrouillé. Un refus laisse donc l'interrupteur là où il était.
+  Future<void> _basculerVerrou(bool valeur) async {
+    if (valeur && !await _verrou.disponible) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Aucune empreinte, reconnaissance faciale ou code n’est configuré sur cet appareil.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final ok = await _verrou.definirActif(
+      valeur,
+      motif: valeur
+          ? 'Confirmez pour activer le déverrouillage rapide'
+          : 'Confirmez pour désactiver le déverrouillage rapide',
+    );
+    if (!mounted || ok) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Authentification annulée. Le réglage n’a pas changé.')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,6 +183,27 @@ class _ProfilsPageState extends State<ProfilsPage>
                             onChanged: (_) => context.read<ThemeCubit>().toggle(),
                           );
                         },
+                      ),
+                      const SizedBox(height: 10),
+                      // Déverrouillage rapide — c'est le réglage que promet
+                      // le dialogue proposé après la connexion (« Vous
+                      // pourrez le modifier dans Paramètres »). L'écouter via
+                      // AnimatedBuilder plutôt que setState : le verrou est un
+                      // ChangeNotifier partagé avec le voile de l'application,
+                      // les deux doivent afficher le même état.
+                      AnimatedBuilder(
+                        animation: _verrou,
+                        builder: (context, _) => _buildSwitchTile(
+                          icon: Icons.fingerprint_rounded,
+                          iconColor: AppColor.kPrimary,
+                          iconBg: AppColor.kAccentSoft,
+                          label: 'Déverrouillage rapide',
+                          sub: _verrou.actif
+                              ? 'Empreinte, visage ou code du téléphone'
+                              : 'Désactivé',
+                          value: _verrou.actif,
+                          onChanged: _basculerVerrou,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       // Contacts

@@ -2,6 +2,8 @@ import '../../domain/entities/colis.dart';
 import '../../domain/entities/client_recherche.dart';
 import '../../domain/entities/notification_model.dart';
 import '../../domain/entities/country_pricing.dart';
+import '../../domain/entities/prix_calcule.dart';
+import '../../domain/entities/suivi_public.dart';
 import '../../domain/repositories/colis_repository.dart';
 import '../datasources/colis_remote_datasource.dart';
 
@@ -27,7 +29,8 @@ class ColisRepositoryImpl implements ColisRepository {
 
   @override
   Future<String?> envoyerColis({
-    required String recepteurId,
+    String? recepteurId,
+    Map<String, dynamic>? destinataireManuel,
     required double poids,
     required double prix,
     required String destination,
@@ -36,6 +39,7 @@ class ColisRepositoryImpl implements ColisRepository {
   }) =>
       remoteDataSource.envoyerColis(
         recepteurId: recepteurId,
+        destinataireManuel: destinataireManuel,
         poids: poids,
         prix: prix,
         destination: destination,
@@ -66,4 +70,24 @@ class ColisRepositoryImpl implements ColisRepository {
   @override
   Future<CountryPricing> getPricingByCountry(String countryId) =>
       remoteDataSource.getPricingByCountry(countryId);
+
+  @override
+  Future<PrixCalcule> calculerPrix({
+    required String countryId,
+    required double weight,
+    required String shippingType,
+    bool needsPickup = false,
+    bool needsDelivery = false,
+  }) =>
+      remoteDataSource.calculerPrix(
+        countryId: countryId,
+        weight: weight,
+        shippingType: shippingType,
+        needsPickup: needsPickup,
+        needsDelivery: needsDelivery,
+      );
+
+  @override
+  Future<SuiviPublic> suiviPublicParReference(String reference) =>
+      remoteDataSource.suiviPublicParReference(reference);
 }

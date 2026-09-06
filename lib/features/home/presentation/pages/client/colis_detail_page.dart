@@ -87,9 +87,13 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
     try {
       final res =
           await sl<Dio>().get(Env.preuveLivraison(colis.id));
-      final data = res.data['data'];
+      // Backend : { success, preuve: { ..., photo_url } }.
+      // On tolère aussi l'enveloppe 'data' et les variantes de nom de champ.
+      final body = res.data as Map<String, dynamic>? ?? const {};
+      final data = (body['preuve'] ?? body['data']) as Map<String, dynamic>?;
       setState(() {
-        _preuveUrl = data?['photoUrl']?.toString() ??
+        _preuveUrl = data?['photo_url']?.toString() ??
+            data?['photoUrl']?.toString() ??
             data?['url']?.toString();
         _loadingPreuve = false;
       });

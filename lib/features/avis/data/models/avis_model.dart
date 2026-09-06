@@ -11,7 +11,8 @@ class AvisModel extends AvisEntity {
   factory AvisModel.fromJson(Map<String, dynamic> json) {
     return AvisModel(
       id: json['id']?.toString() ?? '',
-      colisId: json['colisId']?.toString() ?? '',
+      // Backend Sequelize : attribut `colis_id` (snake). On tolère `colisId`.
+      colisId: (json['colis_id'] ?? json['colisId'])?.toString() ?? '',
       note: (json['note'] as num?)?.toInt() ?? 0,
       commentaire: json['commentaire']?.toString(),
     );

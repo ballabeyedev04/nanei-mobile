@@ -1,3 +1,5 @@
+import 'core/services/verrou_biometrique.dart';
+import 'core/widgets/garde_biometrique.dart';
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -144,6 +146,13 @@ class MyApp extends StatelessWidget {
               themeMode: themeMode,
               home: const SplashPage(),
               onGenerateRoute: AppRouter.onGenerateRoute,
+              // Le voile est posé ICI, au-dessus du Navigator : il couvre
+              // donc tous les écrans, y compris ceux ouverts depuis une
+              // notification push.
+              builder: (context, child) => GardeBiometrique(
+                verrou: di.sl<VerrouBiometrique>(),
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           );
         },

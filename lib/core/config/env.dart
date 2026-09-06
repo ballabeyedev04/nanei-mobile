@@ -35,9 +35,10 @@ class Env {
   static String get colisEnvoyes        => '/client/colis-envoyes';
   static String get colisRecus          => '/client/colis-recus';
   static String colisRecherche(String reference) => '/client/colis-recherche/$reference';
+  // Nombre de colis envoyés / reçus : PAS d'endpoint dédié côté backend.
+  // Les compteurs sont fournis par `colisStatistiques`
+  // (`GET /client/statistiques-colis` → { colisEnvoyes, colisRecus, total }).
   static String get colisStatistiques   => '/client/statistiques-colis';
-  static String get colisNbEnvoyes      => '/client/nombre-coli-envoyer';
-  static String get colisNbRecus        => '/client/nombre-coli-recu';
 
   // ── Client ────────────────────────────────────────────────────────────────
   static String get clientRechercher => '/client/rechercher-client';
@@ -83,7 +84,9 @@ class Env {
   static String get accountDelete               => '/account';
 
   // ── Reset Password ────────────────────────────────────────────────────────
-  static String resetPassword(String token)     => '/auth/reset-password/$token';
+  // Le backend n'utilise PAS de token dans l'URL : le flux est basé sur un
+  // code OTP envoyé par email → `POST /auth/reset-password` avec un body
+  // { email, code, mot_de_passe } (voir reset_password_page.dart).
 
   // ── Suivi public ─────────────────────────────────────────────────────────
   static String suiviPublic(String reference)   => '$baseUrl/suivi/$reference';
@@ -94,4 +97,16 @@ class Env {
 
   // ── Taux de change (affichage double devise EUR/FCFA) ───────────────────
   static String get tauxChange => '/pricing/taux-change';
+
+  // ── Calcul de prix serveur (source de vérité, fallback = calcul local) ──
+  static String get pricingCalculate => '/pricing/calculate';
+
+  // ── Facture PDF ─────────────────────────────────────────────────────────
+  // /:id  → aperçu inline ; /:id/download → force le téléchargement
+  static String factureApercu(String paiementId)   => '/factures/$paiementId';
+  static String factureDownload(String paiementId) => '/factures/$paiementId/download';
+
+  // ── Suivi public d'un colis par référence (sans authentification) ───────
+  static String suiviPublicJson(String reference) =>
+      '$baseUrl/suivi/$reference?format=json';
 }

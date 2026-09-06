@@ -1,7 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/errors/failure.dart';
 import '../../../../core/services/token_service.dart';
@@ -25,6 +24,9 @@ class AuthRepositoryImpl implements AuthRepository {
       await remoteDataSource.login(identifiant, motDePasse);
 
       await sl<TokenService>().setToken(authResponse.token);
+      // Persiste le refresh token pour le renouvellement automatique du JWT
+      // (voir l'intercepteur Dio + TokenService.tryRefresh).
+      await sl<TokenService>().setRefreshToken(authResponse.refreshToken);
 
       await sl<FlutterSecureStorage>().write(
         key: 'user_id',
@@ -58,7 +60,16 @@ class AuthRepositoryImpl implements AuthRepository {
         telephone: telephone
       );
 
-      await sl<TokenService>().setToken(authResponse.token);
+      // `POST /auth/register` ne renvoie PAS de token (par conception : le
+      // parcours mobile redirige vers l'écran de connexion après inscription,
+      // cf. register_page.dart). On ne stocke donc aucun token ici — si le
+      // backend en fournit un un jour, on l'enregistre.
+      if (authResponse.token.isNotEmpty) {
+        await sl<TokenService>().setToken(authResponse.token);
+        if (authResponse.refreshToken.isNotEmpty) {
+          await sl<TokenService>().setRefreshToken(authResponse.refreshToken);
+        }
+      }
 
       return Right(authResponse.user);
     } on DioException catch (e) {
@@ -69,8 +80,17 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   String _friendlyError(DioException e) {
-    if (e.response?.data is Map && e.response?.data['message'] != null) {
-      return e.response!.data['message'] as String;
+    final data = e.response?.data;
+    if (data is Map && data['message'] != null) {
+      final msg = data['message'].toString();
+      // Erreurs de validation Joi : { message: 'Données invalides',
+      // details: ['"email" doit être un email valide', ...] }. On expose le
+      // détail plutôt que le message générique.
+      final details = data['details'];
+      if (details is List && details.isNotEmpty) {
+        return details.map((d) => d.toString()).join('\n');
+      }
+      return msg;
     }
     switch (e.type) {
       case DioExceptionType.connectionTimeout:

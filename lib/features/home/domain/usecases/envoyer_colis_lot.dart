@@ -8,7 +8,10 @@ class EnvoyerColisLot {
 
   Future<List<Colis>> call(List<EnvoyerColisParams> items) {
     final payload = items.map((p) => {
-          'recepteurId': p.recepteurId,
+          if (p.destinataireManuel != null)
+            'destinataireManuel': p.destinataireManuel!.toJson()
+          else
+            'recepteurId': p.recepteurId,
           'poids': p.poids,
           'prix': p.prix,
           'destination': p.destination,

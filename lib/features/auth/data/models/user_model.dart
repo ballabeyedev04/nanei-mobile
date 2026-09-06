@@ -59,10 +59,17 @@ class UserModel extends User {
 
 class AuthResponseModel {
   final String token;
+
+  /// Refresh token longue durée renvoyé par le backend au login
+  /// (`POST /auth/refresh` s'en sert pour renouveler le JWT sans
+  /// redemander les identifiants). Vide si le backend n'en fournit pas
+  /// (ex: réponse d'inscription).
+  final String refreshToken;
   final UserModel user;
 
   AuthResponseModel({
     required this.token,
+    this.refreshToken = '',
     required this.user,
   });
 
@@ -71,6 +78,7 @@ class AuthResponseModel {
 
     return AuthResponseModel(
       token: json['token'] ?? '',
+      refreshToken: json['refreshToken'] ?? '',
       user: UserModel.fromJson(userData as Map<String, dynamic>),
     );
   }
@@ -78,16 +86,19 @@ class AuthResponseModel {
   Map<String, dynamic> toJson() {
     return {
       'token': token,
+      'refreshToken': refreshToken,
       'utilisateur': user.toJson(),
     };
   }
 
   AuthResponseModel copyWith({
     String? token,
+    String? refreshToken,
     UserModel? user,
   }) {
     return AuthResponseModel(
       token: token ?? this.token,
+      refreshToken: refreshToken ?? this.refreshToken,
       user: user ?? this.user,
     );
   }

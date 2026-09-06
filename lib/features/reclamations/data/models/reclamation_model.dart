@@ -16,15 +16,18 @@ class ReclamationModel extends ReclamationEntity {
     final List rawPhotos = json['photos'] as List? ?? [];
     return ReclamationModel(
       id: json['id']?.toString() ?? '',
-      colisId: json['colisId']?.toString() ?? '',
+      // Backend Sequelize : attributs snake_case `colis_id` / `commentaire_admin`.
+      // On tolère les variantes camelCase.
+      colisId: (json['colis_id'] ?? json['colisId'])?.toString() ?? '',
       type: json['type']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       statut: json['statut']?.toString() ?? 'en_attente',
       photos: rawPhotos.map((e) => e.toString()).toList(),
-      commentaireAdmin: json['commentaireAdmin']?.toString(),
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+      commentaireAdmin:
+          (json['commentaire_admin'] ?? json['commentaireAdmin'])?.toString(),
+      createdAt: DateTime.tryParse(
+              (json['createdAt'] ?? json['created_at'] ?? '').toString()) ??
+          DateTime.now(),
     );
   }
 }
