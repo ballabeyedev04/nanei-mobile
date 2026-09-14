@@ -45,5 +45,14 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Scan de colis (mobile_scanner) et photo de justificatifs (image_picker) -->
+	<key>NSCameraUsageDescription</key>
+	<string>NAnei utilise l'appareil photo pour scanner les codes de vos colis et joindre des photos à vos réclamations.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NAnei accède à votre photothèque pour joindre une photo existante à votre réclamation.</string>
+	<!-- Verrou biométrique de l'application (local_auth) -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>NAnei utilise Face ID pour déverrouiller rapidement et en toute sécurité l'application.</string>
 </dict>
 </plist>
