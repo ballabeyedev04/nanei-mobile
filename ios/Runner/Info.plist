@@ -54,5 +54,11 @@
 	<!-- Verrou biométrique de l'application (local_auth) -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>NAnei utilise Face ID pour déverrouiller rapidement et en toute sécurité l'application.</string>
+	<!-- Chiffrement standard (TLS système) uniquement, aucun algorithme
+	     propriétaire : exempté de la conformité export. Sans cette clé, chaque
+	     build reste bloqué en « Conformité manquante » sur App Store Connect
+	     jusqu'à réponse manuelle. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
