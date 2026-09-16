@@ -1,8 +1,4 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
@@ -98,21 +94,6 @@ Future<void> init() async {
   // MÊME état, sans quoi l'interrupteur du profil n'aurait aucun effet visible.
   sl.registerLazySingleton(() => VerrouBiometrique(prefs: sl()));
 
-  // Certificate pinning — chargement du CA cert en mémoire une seule fois.
-  // Si le cert change côté backend (renouvellement), le chargement échoue
-  // gracieusement et l'app tombe sur la validation système (pas de crash).
-  //
-  // NOTE : on épingle le certificat INTERMÉDIAIRE Let's Encrypt (YE2), pas le
-  // certificat feuille — celui-ci change à chaque renouvellement (~90j) alors
-  // que l'intermédiaire reste stable sur une longue période.
-  Uint8List? pinnedCertBytes;
-  try {
-    final certByteData = await rootBundle.load('assets/certs/backend_ca.pem');
-    pinnedCertBytes = certByteData.buffer.asUint8List();
-  } catch (_) {
-    pinnedCertBytes = null;
-  }
-
   // ── Dio ────────────────────────────────────────────────────────────────────
   sl.registerLazySingleton(() {
     final dio = Dio(
@@ -126,22 +107,12 @@ Future<void> init() async {
       ),
     );
 
-    // Certificate pinning (production uniquement + cert disponible).
-    // Fallback automatique vers la validation système si le cert a changé.
-    if (!kDebugMode && pinnedCertBytes != null) {
-      final certBytes = pinnedCertBytes;
-      dio.httpClientAdapter = IOHttpClientAdapter(
-        createHttpClient: () {
-          try {
-            final sc = SecurityContext(withTrustedRoots: false);
-            sc.setTrustedCertificatesBytes(certBytes);
-            return HttpClient(context: sc);
-          } catch (_) {
-            return HttpClient();
-          }
-        },
-      );
-    }
+    // Pas de certificate pinning : l'API est derrière Let's Encrypt, qui
+    // renouvelle tous les 90 jours en signant avec un intermédiaire choisi
+    // parmi plusieurs (YE1, YE2…) — épingler l'un d'eux garantit une panne
+    // totale à la rotation suivante. Voir sign-mobile, même bug corrigé le
+    // 2026-09-15 (pin YE2, serveur passé sur YE1, échec de handshake sur
+    // toute requête en Release). La validation TLS système reste active.
 
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
