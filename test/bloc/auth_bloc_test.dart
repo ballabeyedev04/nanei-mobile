@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nanei/core/utils/app_logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nanei/core/errors/failure.dart';
 import 'package:nanei/features/auth/domain/entities/user.dart';
@@ -14,6 +15,9 @@ class MockLoginUser extends Mock implements LoginUser {}
 class MockRegisterUser extends Mock implements RegisterUser {}
 
 void main() {
+  // Les blocs journalisent via AppLogger, qui doit être initialisé.
+  setUpAll(AppLogger.init);
+
   late AuthBloc bloc;
   late MockLoginUser mockLogin;
   late MockRegisterUser mockRegister;

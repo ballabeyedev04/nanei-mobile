@@ -1,0 +1,4 @@
+- Prix de l'envoi calculé par le serveur selon la grille du pays
+- Paiement Wave et Orange Money : montant converti en FCFA, paiement confirmé par l'opérateur
+- « Tout marquer comme lu » dans les notifications
+- Correction : le statut « Livré » s'affiche correctement dans le suivi

@@ -21,6 +21,12 @@ class ServerFailure extends Failure {
       : super(errorMessage: errorMessage);
 }
 
+/// Un avis existe déjà pour ce colis (HTTP 409 sur POST /avis).
+class AvisDejaDonneFailure extends Failure {
+  AvisDejaDonneFailure({required String errorMessage})
+      : super(errorMessage: errorMessage);
+}
+
 class CacheFailure extends Failure {
   CacheFailure({required String errorMessage})
       : super(errorMessage: errorMessage);

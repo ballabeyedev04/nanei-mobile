@@ -17,6 +17,17 @@ class Colis {
   /// dans une même commande groupée (voir EnvoyerColisLot).
   final String? lotId;
 
+  /// Mode de transport : 'aerien' | 'maritime' (sans accent), null pour les
+  /// anciens colis créés avant que le back ne l'enregistre.
+  final String? typeTransport;
+
+  /// Libellé affichable du mode de transport ('' si inconnu).
+  String get typeTransportLabel => switch (typeTransport) {
+        'aerien' => 'Aérien',
+        'maritime' => 'Maritime',
+        _ => '',
+      };
+
   const Colis({
     required this.id,
     required this.reference,
@@ -31,5 +42,6 @@ class Colis {
     required this.createdAt,
     this.updatedAt,
     this.lotId,
+    this.typeTransport,
   });
 }

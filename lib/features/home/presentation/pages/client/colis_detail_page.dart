@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/config/env.dart';
 import 'package:nanei/core/theme/app_color.dart';
 import 'package:nanei/core/extensions/double_extensions.dart';
+import 'package:nanei/features/avis/domain/usecases/get_mes_avis.dart';
 import 'package:nanei/features/avis/presentation/cubit/avis_cubit.dart';
 import 'package:nanei/features/avis/presentation/widgets/rating_dialog.dart';
 import 'package:nanei/features/avis/presentation/widgets/star_rating.dart';
@@ -35,11 +36,16 @@ class ColisDetailPage extends StatefulWidget {
 class _ColisDetailPageState extends State<ColisDetailPage> {
   String? _preuveUrl;
   bool _loadingPreuve = true;
-  bool _aDejaUnAvis = false;
+  /// true tant qu'on ne sait pas : le bandeau n'apparaît qu'une fois la
+  /// liste des avis vérifiée (évite un 2e envoi → 409).
+  bool _aDejaUnAvis = true;
   bool _loadingEtiquette = false;
 
   Colis get colis => widget.colis;
   bool get isLivre => colis.statut == 'livre';
+
+  /// Le back n'accepte l'avis que de l'EXPÉDITEUR (un seul avis par colis).
+  bool get peutDonnerAvis => isLivre && !widget.isReception;
 
   @override
   void initState() {
@@ -49,6 +55,21 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
     } else {
       setState(() => _loadingPreuve = false);
     }
+    if (peutDonnerAvis) _verifierAvisExistant();
+  }
+
+  /// GET /avis : le bandeau « Donnez votre avis » n'est affiché que si ce
+  /// colis n'a pas encore été noté.
+  Future<void> _verifierAvisExistant() async {
+    final result = await sl<GetMesAvis>()();
+    if (!mounted) return;
+    result.fold(
+      // En cas d'erreur on affiche le bandeau : un éventuel doublon est
+      // de toute façon géré (409 → « déjà noté »).
+      (_) => setState(() => _aDejaUnAvis = false),
+      (liste) => setState(
+          () => _aDejaUnAvis = liste.any((a) => a.colisId == colis.id)),
+    );
   }
 
   Future<void> _telechargerEtiquette() async {
@@ -145,7 +166,7 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
               ],
 
               // Banner avis (si livré et pas encore noté)
-              if (isLivre && !_aDejaUnAvis) ...[
+              if (peutDonnerAvis && !_aDejaUnAvis) ...[
                 const SizedBox(height: 16),
                 _buildAvisBanner(),
               ],
@@ -209,7 +230,12 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${colis.poids} kg · ${colis.prix.toEurFcfa(decimals: 0)} · ${colis.type}',
+            [
+              '${colis.poids} kg',
+              colis.prix.toEurFcfa(decimals: 0),
+              if (colis.type.isNotEmpty) colis.type,
+              if (colis.typeTransportLabel.isNotEmpty) colis.typeTransportLabel,
+            ].join(' · '),
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 13, color: AppColor.kGrayscale40),
           ),
@@ -361,7 +387,7 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Vous avez reçu votre colis ? Donnez votre avis',
+                  'Votre colis a été livré ? Donnez votre avis',
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -370,12 +396,14 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
               ),
               TextButton(
                 onPressed: () async {
-                  await showRatingDialog(
+                  final note = await showRatingDialog(
                     context,
                     colis.id,
                     context.read<AvisCubit>(),
                   );
-                  setState(() => _aDejaUnAvis = true);
+                  if (note == true && mounted) {
+                    setState(() => _aDejaUnAvis = true);
+                  }
                 },
                 child: Text('Noter',
                     style: GoogleFonts.plusJakartaSans(

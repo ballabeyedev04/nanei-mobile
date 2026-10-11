@@ -279,6 +279,14 @@ class _SuiviPublicSheetState extends State<_SuiviPublicSheet> {
         _ligne(Icons.scale_outlined, 'Poids', '${s.poids.toStringAsFixed(1)} kg'),
         if (s.typeColis.isNotEmpty)
           _ligne(Icons.category_outlined, 'Type', s.typeColis),
+        if (s.typeTransport == 'aerien' || s.typeTransport == 'maritime')
+          _ligne(
+            s.typeTransport == 'aerien'
+                ? Icons.flight_rounded
+                : Icons.directions_boat_rounded,
+            'Transport',
+            s.typeTransport == 'aerien' ? 'Aérien' : 'Maritime',
+          ),
         _ligne(Icons.event_outlined, 'Créé le', _fmtDate(s.createdAt)),
         if ((s.expediteurNom ?? '').isNotEmpty)
           _ligne(Icons.north_east_rounded, 'Expéditeur',

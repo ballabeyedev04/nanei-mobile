@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:nanei/core/utils/media_type.dart';
 import 'package:nanei/core/config/env.dart';
 
 import '../models/reclamation_model.dart';
@@ -34,9 +35,11 @@ class ReclamationRemoteDataSourceImpl implements ReclamationRemoteDataSource {
     required String description,
     required List<String> photos,
   }) async {
-    final photoFiles = photos
-        .map((p) => MapEntry('photos', MultipartFile.fromFileSync(p)))
-        .toList();
+    // Type MIME explicite : sans lui, Dio envoie application/octet-stream et
+    // le back refuse la photo.
+    final photoFiles = <MapEntry<String, MultipartFile>>[
+      for (final p in photos) MapEntry('photos', await multipartImage(p)),
+    ];
 
     final fd = FormData.fromMap({
       'colis_id': colisId,

@@ -5,7 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:nanei/core/utils/api_error.dart';
+import 'package:nanei/core/utils/media_type.dart';
 import 'package:nanei/core/utils/app_logger.dart';
+import 'package:nanei/core/utils/security_validators.dart';
 import 'package:nanei/core/widgets/talker_debug_screen.dart';
 import 'package:nanei/core/config/env.dart';
 import 'package:nanei/core/theme/app_color.dart';
@@ -27,6 +31,82 @@ class _ProfilsPageState extends State<ProfilsPage>
   Map<String, dynamic>? _user;
   bool _loading = true;
   String? _error;
+  bool _envoiPhoto = false;
+
+  /// URL (Cloudflare R2) de la photo de profil renvoyée par le back.
+  String? get _photoUrl {
+    final url = _user?['photoProfil'] as String?;
+    return (url != null && url.trim().isNotEmpty) ? url : null;
+  }
+
+  /// Choix d'une photo (galerie / appareil photo) puis envoi
+  /// `PUT /account/modifier-profil` en multipart, champ `photoProfil`.
+  Future<void> _changerPhoto() async {
+    if (_envoiPhoto) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choisir dans la galerie'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Prendre une photo'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final XFile? image;
+    try {
+      // imageQuality → JPEG compressé (le back accepte JPEG/PNG/WEBP, 5 Mo).
+      image = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+    } catch (e) {
+      if (mounted) showErrorToast(context, "Impossible d'accéder aux photos.");
+      return;
+    }
+    if (image == null || !mounted) return;
+
+    setState(() => _envoiPhoto = true);
+    try {
+      final res = await sl<Dio>().put(
+        Env.accountModifierProfil,
+        data: FormData.fromMap({
+          'photoProfil': await multipartImage(image.path),
+        }),
+      );
+      final utilisateur = res.data is Map ? res.data['utilisateur'] : null;
+      if (!mounted) return;
+      setState(() {
+        if (utilisateur is Map<String, dynamic>) _user = utilisateur;
+      });
+      showSuccessToast(context, 'Photo de profil mise à jour !');
+    } catch (e) {
+      if (mounted) {
+        showErrorToast(context,
+            messageErreurApi(e, fallback: "Impossible d'envoyer la photo."));
+      }
+    } finally {
+      if (mounted) setState(() => _envoiPhoto = false);
+    }
+  }
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fade;
@@ -74,6 +154,17 @@ class _ProfilsPageState extends State<ProfilsPage>
     return '${prenom.isNotEmpty ? prenom[0] : ''}${nom.isNotEmpty ? nom[0] : ''}'
         .toUpperCase();
   }
+
+  Widget _avatarInitiales() => Center(
+        child: Text(
+          _initiales.isEmpty ? '?' : _initiales,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 32,
+            fontWeight: FontWeight.w800,
+            color: Colors.black,
+          ),
+        ),
+      );
 
   String get _nomComplet {
     final prenom = (_user?['prenom'] as String? ?? '');
@@ -442,38 +533,56 @@ class _ProfilsPageState extends State<ProfilsPage>
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFFF4F6FA),
-                        border: Border.all(
-                            color: const Color(0xFFE5E9F2), width: 3),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _initiales.isEmpty ? '?' : _initiales,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black,
-                          ),
+                    GestureDetector(
+                      onTap: _changerPhoto,
+                      child: Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFF4F6FA),
+                          border: Border.all(
+                              color: const Color(0xFFE5E9F2), width: 3),
+                        ),
+                        child: ClipOval(
+                          child: _envoiPhoto
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2.5),
+                                  ),
+                                )
+                              : _photoUrl != null
+                                  ? Image.network(
+                                      _photoUrl!,
+                                      width: 90,
+                                      height: 90,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _avatarInitiales(),
+                                    )
+                                  : _avatarInitiales(),
                         ),
                       ),
                     ),
                     Positioned(
                       bottom: 2,
                       right: 2,
-                      child: Container(
-                        width: 22,
-                        height: 22,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color(0xFF059669),
+                      child: GestureDetector(
+                        onTap: _changerPhoto,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColor.kPrimary,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.photo_camera_rounded,
+                              color: Colors.white, size: 13),
                         ),
-                        child: const Icon(Icons.check,
-                            color: Colors.white, size: 13),
                       ),
                     ),
                   ],
@@ -920,7 +1029,8 @@ class _EditSheetState extends State<_EditSheet> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorToast(context, 'Erreur lors de la mise à jour.');
+        showErrorToast(context,
+            messageErreurApi(e, fallback: 'Erreur lors de la mise à jour.'));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -1018,14 +1128,12 @@ class _PasswordSheetState extends State<_PasswordSheet> {
         // Affiche le vrai message renvoyé par le serveur (ex: validation,
         // mot de passe incorrect, erreur réseau) au lieu d'un message
         // générique qui masquait la cause réelle en cas d'erreur 400.
-        String message = 'Impossible de modifier le mot de passe.';
-        if (e is DioException) {
-          final data = e.response?.data;
-          if (data is Map && data['message'] is String) {
-            message = data['message'] as String;
-          }
-        }
-        showErrorToast(context, message);
+        // Message du serveur, y compris le détail de validation Joi
+        // (`details`) plutôt que le seul « Données invalides ».
+        showErrorToast(
+            context,
+            messageErreurApi(e,
+                fallback: 'Impossible de modifier le mot de passe.'));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -1060,9 +1168,9 @@ class _PasswordSheetState extends State<_PasswordSheet> {
               const SizedBox(height: 14),
               _passwordField(_newCtrl, 'Nouveau mot de passe', _showNew,
                   () => setState(() => _showNew = !_showNew),
-                  validator: (v) => v == null || v.length < 6
-                      ? 'Minimum 6 caractères'
-                      : null),
+                  // Même règle qu'à l'inscription (plus stricte que le
+                  // minimum du back : 8 car., majuscule, minuscule, chiffre).
+                  validator: SecurityValidators.validatePassword),
               const SizedBox(height: 14),
               _passwordField(
                   _confirmCtrl, 'Confirmer le mot de passe', _showConfirm,

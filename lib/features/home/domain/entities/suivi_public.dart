@@ -21,6 +21,8 @@ class SuiviPublic {
   final String destination;
   final double poids;
   final String typeColis;
+  /// 'aerien' | 'maritime' (calculé par le back, sans accent).
+  final String? typeTransport;
   final DateTime? createdAt;
 
   final String? expediteurNom;
@@ -39,6 +41,7 @@ class SuiviPublic {
     required this.destination,
     required this.poids,
     required this.typeColis,
+    this.typeTransport,
     this.createdAt,
     this.expediteurNom,
     this.expediteurPrenom,

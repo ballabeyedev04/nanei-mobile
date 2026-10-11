@@ -36,6 +36,7 @@ class ColisRepositoryImpl implements ColisRepository {
     required String destination,
     required String typeColis,
     String? description,
+    Map<String, dynamic>? tarif,
   }) =>
       remoteDataSource.envoyerColis(
         recepteurId: recepteurId,
@@ -45,6 +46,7 @@ class ColisRepositoryImpl implements ColisRepository {
         destination: destination,
         typeColis: typeColis,
         description: description,
+        tarif: tarif,
       );
 
   @override

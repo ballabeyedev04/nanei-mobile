@@ -18,6 +18,7 @@ abstract class ColisRepository {
     required String destination,
     required String typeColis,
     String? description,
+    Map<String, dynamic>? tarif,
   });
   Future<List<Colis>> envoyerColisLot(List<Map<String, dynamic>> items);
   Future<List<ClientRecherche>> rechercherClient(String query);

@@ -5,9 +5,11 @@ import 'package:nanei/core/theme/app_color.dart';
 import '../cubit/avis_cubit.dart';
 import '../cubit/avis_state.dart';
 
-Future<void> showRatingDialog(
+/// Ouvre la saisie d'avis. Renvoie `true` si le colis a désormais un avis
+/// (envoyé maintenant, ou déjà existant côté serveur), sinon `false`/null.
+Future<bool?> showRatingDialog(
     BuildContext context, String colisId, AvisCubit cubit) {
-  return showDialog(
+  return showDialog<bool>(
     context: context,
     builder: (_) => BlocProvider.value(
       value: cubit,
@@ -39,9 +41,18 @@ class _RatingDialogState extends State<_RatingDialog> {
     return BlocConsumer<AvisCubit, AvisState>(
       listener: (context, state) {
         if (state is AvisEnvoye) {
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
+          final messenger = ScaffoldMessenger.of(context);
+          Navigator.of(context).pop(true);
+          messenger.showSnackBar(
             const SnackBar(content: Text('Merci pour votre avis !')),
+          );
+        }
+        if (state is AvisDejaDonne) {
+          final messenger = ScaffoldMessenger.of(context);
+          Navigator.of(context).pop(true);
+          messenger.showSnackBar(
+            const SnackBar(
+                content: Text('Vous avez déjà donné votre avis sur ce colis.')),
           );
         }
         if (state is AvisError) {
@@ -123,7 +134,7 @@ class _RatingDialogState extends State<_RatingDialog> {
             TextButton(
               onPressed: loading
                   ? null
-                  : () => Navigator.of(context).pop(),
+                  : () => Navigator.of(context).pop(false),
               child: Text('Plus tard',
                   style: GoogleFonts.plusJakartaSans(
                       color: AppColor.kGrayscale40)),
@@ -131,7 +142,7 @@ class _RatingDialogState extends State<_RatingDialog> {
             ElevatedButton(
               onPressed: loading || _note == 0
                   ? null
-                  : () => context.read<AvisCubit>().donnerAvis(
+                  : () => context.read<AvisCubit>().envoyerAvis(
                         colisId: widget.colisId,
                         note: _note,
                         commentaire: _commentaireCtrl.text.trim().isEmpty

@@ -19,6 +19,11 @@ class AvisEnvoye extends AvisState {
   const AvisEnvoye();
 }
 
+/// L'avis existait déjà (409) : traité comme un succès côté écran.
+class AvisDejaDonne extends AvisState {
+  const AvisDejaDonne();
+}
+
 class AvisChargement extends AvisState {
   const AvisChargement();
 }

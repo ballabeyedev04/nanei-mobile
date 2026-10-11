@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nanei/core/utils/app_logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nanei/core/errors/failure.dart';
 import 'package:nanei/features/avis/domain/usecases/donner_avis.dart';
@@ -12,6 +13,9 @@ class MockDonnerAvis extends Mock implements DonnerAvis {}
 class MockGetMesAvis extends Mock implements GetMesAvis {}
 
 void main() {
+  // Les blocs journalisent via AppLogger, qui doit être initialisé.
+  setUpAll(AppLogger.init);
+
   late AvisCubit cubit;
   late MockDonnerAvis mockDonner;
   late MockGetMesAvis mockGet;

@@ -64,16 +64,20 @@ class _SplashPageState extends State<SplashPage>
       }
 
       final tokenService = sl<TokenService>();
-      final isAuth = await tokenService.isAuthenticated;
+      // Le jeton d'accès ne dure qu'1 h, le refresh token 7 jours : un jeton
+      // d'accès expiré ne suffit PAS à renvoyer vers la connexion. L'appel à
+      // /account/me ci-dessous le renouvelle automatiquement (intercepteur
+      // Dio) tant que le refresh token est valide.
+      final accesValide = await tokenService.isAuthenticated;
+      final peutRafraichir = await tokenService.aUnRefreshToken;
       if (!mounted) return;
 
-      if (!isAuth) {
-        AppLogger.info('Splash: pas de token valide → login');
+      if (!accesValide && !peutRafraichir) {
+        AppLogger.info('Splash: aucune session → login');
         Navigator.of(context).pushReplacementNamed(AppRouter.loginRoute);
         return;
       }
 
-      AppLogger.info('Splash: token valide → accueil');
       User? user;
       try {
         final res = await sl<Dio>().get(Env.accountMe);
@@ -89,6 +93,20 @@ class _SplashPageState extends State<SplashPage>
             telephone: data['telephone']?.toString() ?? '',
           );
         }
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        // 401 (refresh refusé) / 403 (compte désactivé) / 404 (compte
+        // supprimé) : la session n'est plus utilisable.
+        if (status == 401 || status == 403 || status == 404) {
+          AppLogger.info('Splash: session refusée ($status) → login');
+          await tokenService.clearToken();
+          if (!mounted) return;
+          Navigator.of(context).pushReplacementNamed(AppRouter.loginRoute);
+          return;
+        }
+        // Réseau indisponible : on garde la session, les appels suivants
+        // renouvelleront le jeton.
+        AppLogger.warning('Splash: erreur chargement profil', e.toString());
       } catch (e) {
         AppLogger.warning('Splash: erreur chargement profil', e.toString());
       }

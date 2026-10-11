@@ -13,11 +13,14 @@ import 'package:toastification/toastification.dart';
 
 import 'core/observers/app_bloc_observer.dart';
 import 'core/routes/app_router.dart';
+import 'core/routes/navigation.dart';
 import 'core/services/fcm_service.dart';
+import 'core/services/liens_entrants_service.dart';
+import 'core/services/token_service.dart';
+import 'core/widgets/toastNotif.dart';
 import 'core/services/taux_change_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
-import 'core/theme/theme_notifier.dart';
 import 'core/utils/app_logger.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/pages/splash_page.dart';
@@ -87,6 +90,26 @@ void main() async {
     AppLogger.warning('Firebase non configuré — Crashlytics désactivé.');
   }
 
+  // Session morte (refresh token refusé par le serveur) : retour à l'écran
+  // de connexion, depuis n'importe quel écran.
+  di.sl<TokenService>().sessionExpiree.listen((_) {
+    final nav = appNavigatorKey.currentState;
+    if (nav == null) return;
+    nav.pushNamedAndRemoveUntil(AppRouter.loginRoute, (_) => false);
+    final ctx = contexteGlobal;
+    if (ctx != null && ctx.mounted) {
+      showToast(ctx, 'Session expirée', 'Veuillez vous reconnecter.',
+          ToastificationType.warning);
+    }
+  });
+
+  // Liens profonds (retour de paiement Wave / Orange Money).
+  try {
+    await LiensEntrantsService.init();
+  } catch (e) {
+    AppLogger.warning('Liens profonds indisponibles', e.toString());
+  }
+
   runApp(
     BlocProvider(
       create: (_) => di.sl<ThemeCubit>(),
@@ -140,6 +163,7 @@ class MyApp extends StatelessWidget {
           return ToastificationWrapper(
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
+              navigatorKey: appNavigatorKey,
               title: 'Nanei',
               theme: AppTheme.light(),
               darkTheme: AppTheme.dark(),

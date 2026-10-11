@@ -142,14 +142,21 @@ class _ReclamationsPageState extends State<ReclamationsPage> {
   }
 
   _StatutInfo _statutInfo(String statut) {
+    // Valeurs du back : ouverte | en_cours | resolue | rejetee.
     switch (statut.toLowerCase()) {
+      case 'resolue':
+      case 'résolue':
       case 'resolu':
       case 'résolu':
-        return _StatutInfo('Résolu', const Color(0xFF059669), const Color(0xFFD1FAE5));
+        return _StatutInfo('Résolue', const Color(0xFF059669), const Color(0xFFD1FAE5));
+      case 'rejetee':
+      case 'rejetée':
+        return _StatutInfo('Rejetée', const Color(0xFFDC2626), const Color(0xFFFEE2E2));
       case 'en_cours':
         return _StatutInfo('En cours', const Color(0xFF2563EB), const Color(0xFFDBEAFE));
+      case 'ouverte':
       default:
-        return _StatutInfo('En attente', const Color(0xFFB45309), const Color(0xFFFEF3C7));
+        return _StatutInfo('Ouverte', const Color(0xFFB45309), const Color(0xFFFEF3C7));
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,6 +15,7 @@ import '../../domain/entities/paiement.dart';
 // import '../widgets/choix_paiement_sheet.dart';
 import '../widgets/service_indisponible_sheet.dart';
 import '../widgets/facture_button.dart';
+import 'package:nanei/core/services/liens_entrants_service.dart';
 
 class PaiementsPage extends StatefulWidget {
   const PaiementsPage({super.key});
@@ -25,16 +27,24 @@ class PaiementsPage extends StatefulWidget {
 class _PaiementsPageState extends State<PaiementsPage>
     with WidgetsBindingObserver {
   bool _returningFromBrowser = false;
+  StreamSubscription<RetourPaiement>? _retourPaiementSub;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     context.read<PaiementBloc>().add(LoadMesPaiements());
+    // Lien profond nanei://paiement/... : recharger les statuts.
+    _retourPaiementSub = LiensEntrantsService.retoursPaiement.listen((_) {
+      if (!mounted) return;
+      _returningFromBrowser = false;
+      context.read<PaiementBloc>().add(RefreshPaiements());
+    });
   }
 
   @override
   void dispose() {
+    _retourPaiementSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

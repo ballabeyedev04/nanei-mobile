@@ -46,6 +46,13 @@ class EnvoyerColisParams {
   final String typeColis;
   final String? description;
 
+  /// Paramètres tarifaires : le back recalcule le prix à partir de la
+  /// grille du pays (le champ [prix] n'est plus qu'indicatif).
+  final String? countryId;
+  final String? shippingType; // 'aérien' | 'maritime'
+  final bool needsPickup;
+  final bool needsDelivery;
+
   const EnvoyerColisParams({
     this.recepteurId,
     this.destinataireManuel,
@@ -54,12 +61,24 @@ class EnvoyerColisParams {
     required this.destination,
     required this.typeColis,
     this.description,
+    this.countryId,
+    this.shippingType,
+    this.needsPickup = false,
+    this.needsDelivery = false,
   }) : assert(recepteurId != null || destinataireManuel != null,
             'recepteurId ou destinataireManuel doit être fourni');
 
   /// Libellé affichable du destinataire (pour les toasts / le récap du lot).
   String get destinataireLabel =>
       destinataireManuel?.nomComplet ?? '';
+
+  /// Champs envoyés au back pour qu'il calcule lui-même le prix.
+  Map<String, dynamic> get tarifJson => {
+        if (countryId != null) 'countryId': countryId,
+        if (shippingType != null) 'shippingType': shippingType,
+        'needsPickup': needsPickup,
+        'needsDelivery': needsDelivery,
+      };
 }
 
 class EnvoyerColis {
@@ -74,5 +93,6 @@ class EnvoyerColis {
         destination: params.destination,
         typeColis: params.typeColis,
         description: params.description,
+        tarif: params.tarifJson,
       );
 }

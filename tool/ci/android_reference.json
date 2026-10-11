@@ -1,0 +1,23 @@
+{
+  "_lisez_moi": "Référence du contrôle de l'AAB (tool/ci/controle_aab.py). Voir docs/DEPLOIEMENT_ANDROID.md.",
+  "package": "com.nanei.app",
+  "target_sdk_minimum": 35,
+  "target_sdk_recommande": 36,
+  "api_attendue": "api.app-nanei.com",
+  "croissance_taille_alerte_pct": 20,
+  "_permissions": "Permissions ACCEPTÉES (relevées sur le manifeste fusionné du build release 1.0.2+12). Une permission absente de cette liste déclenche un avertissement (le déploiement continue). Pour en accepter une nouvelle : l'ajouter ici, avec son origine dans le commit.",
+  "permissions": [
+    "android.permission.ACCESS_COARSE_LOCATION",
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.CAMERA",
+    "android.permission.INTERNET",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.READ_MEDIA_IMAGES",
+    "android.permission.USE_BIOMETRIC",
+    "android.permission.USE_FINGERPRINT",
+    "android.permission.WAKE_LOCK",
+    "com.google.android.c2dm.permission.RECEIVE",
+    "com.nanei.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+  ]
+}

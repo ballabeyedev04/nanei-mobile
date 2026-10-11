@@ -30,7 +30,8 @@ class _NouvelleReclamationPageState extends State<NouvelleReclamationPage> {
 
   static const _types = [
     {'value': 'perdu', 'label': 'Colis perdu'},
-    {'value': 'endommage', 'label': 'Colis endommagé'},
+    // Valeur EXACTE de l'ENUM back (avec accent).
+    {'value': 'endommagé', 'label': 'Colis endommagé'},
     {'value': 'retard', 'label': 'Retard de livraison'},
     {'value': 'autre', 'label': 'Autre'},
   ];
@@ -43,15 +44,34 @@ class _NouvelleReclamationPageState extends State<NouvelleReclamationPage> {
   }
 
   Future<void> _chargerColis() async {
+    // Colis envoyés ET reçus : le back accepte une réclamation de
+    // l'expéditeur comme du destinataire (ex. colis reçu endommagé).
     try {
-      final res = await sl<Dio>().get(Env.colisEnvoyes);
-      final List data = res.data['data'] ?? [];
+      final reponses = await Future.wait([
+        sl<Dio>().get(Env.colisEnvoyes),
+        sl<Dio>().get(Env.colisRecus),
+      ]);
+      final parId = <String, Map<String, dynamic>>{};
+      for (final res in reponses) {
+        final List data = res.data['data'] ?? [];
+        for (final c in data.cast<Map<String, dynamic>>()) {
+          final id = c['id']?.toString();
+          if (id != null) parId[id] = c;
+        }
+      }
+      if (!mounted) return;
       setState(() {
-        _mesColis = data.cast<Map<String, dynamic>>();
+        _mesColis = parId.values.toList();
+        // Évite l'assertion du DropdownButton si le colis présélectionné
+        // n'est pas dans la liste.
+        if (_colisIdSelectionne != null &&
+            !parId.containsKey(_colisIdSelectionne)) {
+          _colisIdSelectionne = null;
+        }
         _loadingColis = false;
       });
     } catch (_) {
-      setState(() => _loadingColis = false);
+      if (mounted) setState(() => _loadingColis = false);
     }
   }
 

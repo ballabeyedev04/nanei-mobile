@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/config/env.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_color.dart';
+import '../../../../core/utils/api_error.dart';
 import '../../../../core/utils/security_validators.dart';
 import '../../../../injection_container.dart';
 
@@ -88,16 +89,19 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.loginRoute, (_) => false);
     } on DioException catch (e) {
       _attempts++;
-      final msg = e.response?.data?['message'] as String? ?? 'Une erreur est survenue.';
+      // Le back compte déjà les essais (« Code incorrect (N tentatives
+      // restantes) ») et détaille les erreurs de validation : on affiche son
+      // message tel quel, sans ajouter un second compteur.
+      final msg = messageErreurApi(e, fallback: 'Une erreur est survenue.');
       if (_attempts >= _maxAttempts) {
         _startLockdown();
         if (mounted) setState(() {
-          _error = 'Trop de tentatives. Réessayez dans 5 minutes.';
+          _error = 'Trop de tentatives. Réessayez dans quelques minutes.';
           _loading = false;
         });
       } else {
         if (mounted) setState(() {
-          _error = '$msg (${_maxAttempts - _attempts} tentative(s) restante(s))';
+          _error = msg;
           _loading = false;
         });
       }
@@ -215,7 +219,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.next,
                   decoration: _inputDeco(
-                    hint: 'Minimum 6 caractères',
+                    hint: '12 caractères min., majuscule, chiffre, symbole',
                     icon: Icons.lock_outline,
                     suffix: IconButton(
                       icon: Icon(

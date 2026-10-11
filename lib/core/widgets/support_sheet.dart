@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:dio/dio.dart';
 import '../../core/config/env.dart';
 import '../../core/theme/app_color.dart';
+import '../../core/utils/api_error.dart';
+import '../../core/utils/security_validators.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../injection_container.dart';
 
@@ -51,15 +53,16 @@ class _SupportSheetState extends State<_SupportSheet> {
           'description': _descCtrl.text.trim(),
         },
       );
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _sent = true;
       });
-    } catch (_) {
+    } catch (e) {
+      if (!mounted) return;
       setState(() => _loading = false);
-      if (mounted) {
-        showErrorToast(context, 'Erreur lors de l\'envoi. Réessayez.');
-      }
+      showErrorToast(context,
+          messageErreurApi(e, fallback: "Erreur lors de l'envoi. Réessayez."));
     }
   }
 
@@ -254,11 +257,7 @@ class _SupportSheetState extends State<_SupportSheet> {
                 hint: 'exemple@email.com',
                 icon: Icons.mail_outline_rounded,
                 keyboardType: TextInputType.emailAddress,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Email requis';
-                  if (!v.contains('@')) return 'Email invalide';
-                  return null;
-                },
+                validator: SecurityValidators.validateEmail,
               ),
               const SizedBox(height: 14),
               _field(
@@ -266,8 +265,12 @@ class _SupportSheetState extends State<_SupportSheet> {
                 label: 'Objet',
                 hint: 'Ex : Problème avec mon colis',
                 icon: Icons.title_rounded,
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Objet requis' : null,
+                // Le back limite l'objet à 200 caractères.
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Objet requis';
+                  if (v.trim().length > 200) return '200 caractères maximum';
+                  return null;
+                },
               ),
               const SizedBox(height: 14),
               _field(

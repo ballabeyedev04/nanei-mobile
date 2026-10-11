@@ -7,6 +7,7 @@ import 'package:nanei/core/theme/app_color.dart';
 import 'package:nanei/core/extensions/double_extensions.dart';
 import 'package:nanei/core/widgets/app_toast.dart';
 import 'package:nanei/core/widgets/toastNotif.dart';
+import 'package:nanei/core/utils/api_error.dart';
 import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
 import '../../../domain/entities/client_recherche.dart';
@@ -104,16 +105,45 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   }
 
   // ── Calcul prix ──────────────────────────────────────────────────────────
-  double get _pricePerKg {
-    if (_countryPricing == null || _selectedShippingType == null) return 0;
-    final poids = double.tryParse(_poidsController.text) ?? 0;
-    final prices = _countryPricing!.shippingPrices
+  /// Plages de poids du mode de transport choisi, triées par poids minimum.
+  List<ShippingPriceItem> get _plagesTransport {
+    if (_countryPricing == null || _selectedShippingType == null) return [];
+    return _countryPricing!.shippingPrices
         .where((p) => p.type == _selectedShippingType)
-        .toList();
-    for (final p in prices) {
-      if (poids >= p.minWeight && poids <= p.maxWeight) return p.pricePerKg;
+        .toList()
+      ..sort((a, b) => a.minWeight.compareTo(b.minWeight));
+  }
+
+  /// Plage correspondant au poids saisi — MÊME règle que le back
+  /// (min <= poids <= max) ; null si le poids est hors grille.
+  ShippingPriceItem? get _plageApplicable {
+    final poids = double.tryParse(_poidsController.text) ?? 0;
+    for (final p in _plagesTransport) {
+      if (poids >= p.minWeight && poids <= p.maxWeight) return p;
     }
-    return prices.isNotEmpty ? prices.first.pricePerKg : 0;
+    return null;
+  }
+
+  /// Hors plage → 0 : on n'affiche plus un prix que le back refuserait.
+  double get _pricePerKg => _plageApplicable?.pricePerKg ?? 0;
+
+  /// Message d'erreur si le poids ne tombe dans aucune plage de la grille
+  /// (le back répondrait 400 « Aucune plage de poids… »), sinon null.
+  String? _erreurPlagePoids(double poids) {
+    final plages = _plagesTransport;
+    if (plages.isEmpty) {
+      return _countryPricing != null && _selectedShippingType != null
+          ? 'Aucun tarif disponible pour ce transport'
+          : null;
+    }
+    if (plages.any((p) => poids >= p.minWeight && poids <= p.maxWeight)) {
+      return null;
+    }
+    final min = plages.map((p) => p.minWeight).reduce((a, b) => a < b ? a : b);
+    final max = plages.map((p) => p.maxWeight).reduce((a, b) => a > b ? a : b);
+    String f(double v) =>
+        v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+    return 'Poids accepté pour ce transport : ${f(min)} à ${f(max)} kg';
   }
 
   double get _pickupPrice {
@@ -334,6 +364,10 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
+      countryId: _selectedCountry!.id,
+      shippingType: _selectedShippingType,
+      needsPickup: _needsPickup,
+      needsDelivery: _needsDelivery,
     );
   }
 
@@ -439,6 +473,10 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
+        countryId: _selectedCountry!.id,
+        shippingType: _selectedShippingType,
+        needsPickup: _needsPickup,
+        needsDelivery: _needsDelivery,
       ));
       if (mounted) {
         final nomRecepteur = _destinataireNomAffiche;
@@ -463,7 +501,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         showToast(
           context,
           'Échec de l\'envoi',
-          'Une erreur est survenue. Veuillez réessayer.',
+          messageErreurApi(e),
           ToastificationType.error,
         );
       }
@@ -498,7 +536,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         showToast(
           context,
           "Échec de l'envoi du lot",
-          'Une erreur est survenue. Veuillez réessayer.',
+          messageErreurApi(e),
           ToastificationType.error,
         );
       }
@@ -766,6 +804,8 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           TextFormField(
             controller: _poidsController,
             focusNode: _poidsFocus,
+            // Contrôle immédiat de la plage de poids de la grille tarifaire.
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textInputAction: TextInputAction.next,
             onFieldSubmitted: (_) =>
@@ -789,7 +829,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
               final d = double.tryParse(v);
               if (d == null) return 'Entrez un nombre valide';
               if (d <= 0) return 'Le poids doit être supérieur à 0';
-              return null;
+              return _erreurPlagePoids(d);
             },
           ),
 

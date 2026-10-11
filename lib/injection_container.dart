@@ -114,51 +114,81 @@ Future<void> init() async {
     // 2026-09-15 (pin YE2, serveur passé sur YE1, échec de handshake sur
     // toute requête en Release). La validation TLS système reste active.
 
+    // Client dédié au rafraîchissement : SANS intercepteurs, pour qu'un 401
+    // sur /auth/refresh ne relance pas un rafraîchissement (boucle infinie
+    // jusqu'à la limite de débit 429).
+    final refreshDio = Dio(BaseOptions(
+      baseUrl: Env.baseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      contentType: 'application/json',
+      headers: {'Accept': 'application/json'},
+    ));
+
+    Future<bool> rafraichir() => sl<TokenService>().tryRefresh((rt) async {
+          final response = await refreshDio.post(
+            Env.authRefresh,
+            data: {'refreshToken': rt},
+          );
+          return response.data as Map<String, dynamic>?;
+        });
+
+    // Routes d'authentification : jamais de jeton ni de rafraîchissement
+    // (login, register, refresh, logout, mot de passe oublié…).
+    bool estRouteAuth(String path) {
+      final p = path.split('?')[0].trim();
+      return p.contains('/auth/');
+    }
+
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final path = options.path.split('?')[0].trim();
-        final isAuth = path.endsWith(Env.authLogin) ||
-            path.endsWith(Env.authRegister);
-        if (!isAuth) {
-          final token = await sl<TokenService>().getToken();
+        if (!estRouteAuth(options.path) &&
+            !options.headers.containsKey('Authorization')) {
+          final tokenService = sl<TokenService>();
+          // Jeton expiré côté client (1 h) : on le renouvelle AVANT l'appel
+          // plutôt que d'attendre un 401.
+          if (!await tokenService.isAuthenticated &&
+              await tokenService.aUnRefreshToken) {
+            await rafraichir();
+          }
+          final token = await tokenService.getToken();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
         }
         return handler.next(options);
       },
-      onResponse: (response, handler) {
-        return handler.next(response);
-      },
       onError: (DioException e, handler) async {
-        // Refresh token automatique sur 401
-        if (e.response?.statusCode == 401) {
-          final tokenService = sl<TokenService>();
-          final refreshed = await tokenService.tryRefresh((rt) async {
-            final response = await dio.post(
-              Env.authRefresh,
-              data: {'refreshToken': rt},
-              options: Options(headers: {'Authorization': ''}),
-            );
-            return response.data as Map<String, dynamic>?;
-          });
-          if (refreshed) {
-            // Rejouer la requête originale avec le nouveau token
-            final opts = e.requestOptions;
-            final newToken = await tokenService.getToken();
-            opts.headers['Authorization'] = 'Bearer $newToken';
-            try {
-              final response = await dio.fetch(opts);
-              return handler.resolve(response);
-            } catch (retryError) {
-              return handler.next(e);
-            }
-          } else {
-            // Refresh échoué → déconnexion
-            await tokenService.clearToken();
-          }
+        final opts = e.requestOptions;
+        final dejaRejouee = opts.extra['_rejoueApresRefresh'] == true;
+        if (e.response?.statusCode != 401 ||
+            estRouteAuth(opts.path) ||
+            dejaRejouee) {
+          return handler.next(e);
         }
-        return handler.next(e);
+
+        final tokenService = sl<TokenService>();
+        final jetonUtilise = (opts.headers['Authorization'] as String?)
+            ?.replaceFirst('Bearer ', '');
+        final jetonActuel = await tokenService.getToken();
+
+        // Un autre appel a déjà renouvelé le jeton pendant que celui-ci
+        // était en vol : on rejoue simplement avec le nouveau jeton.
+        final dejaRenouvele = jetonActuel != null &&
+            jetonActuel.isNotEmpty &&
+            jetonActuel != jetonUtilise;
+        final ok = dejaRenouvele || await rafraichir();
+        if (!ok) return handler.next(e);
+
+        final nouveauJeton = await tokenService.getToken();
+        opts.headers['Authorization'] = 'Bearer $nouveauJeton';
+        opts.extra['_rejoueApresRefresh'] = true;
+        try {
+          final response = await dio.fetch(opts);
+          return handler.resolve(response);
+        } on DioException catch (retryError) {
+          return handler.next(retryError);
+        }
       },
     ));
 

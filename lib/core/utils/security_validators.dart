@@ -4,6 +4,15 @@ class SecurityValidators {
     r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$',
   );
 
+  /// Validateur de champ e-mail pour les formulaires : même format que le
+  /// back (`isEmail` / Joi `email()`), ex. refuse « a@b ».
+  static String? validateEmail(String? value) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Email requis';
+    if (!_emailRegex.hasMatch(v)) return 'Email invalide (ex. nom@domaine.com)';
+    return null;
+  }
+
   /// Valide un email reçu via argument de route / deep link.
   /// Retourne l'email nettoyé ou null si invalide.
   static String? validateRouteEmail(Object? arg) {

@@ -17,6 +17,7 @@ class EnvoyerColisLot {
           'destination': p.destination,
           'type_colis': p.typeColis,
           'description': p.description,
+          ...p.tarifJson,
         }).toList();
     return repository.envoyerColisLot(payload);
   }

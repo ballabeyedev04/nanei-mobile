@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decode/jwt_decode.dart';
 import '../constants/storage_keys.dart';
@@ -76,20 +77,60 @@ class TokenService {
     }
   }
 
+  /// Rafraîchissement en cours, partagé par tous les appelants.
+  Future<bool>? _refreshEnCours;
+
+  final StreamController<void> _sessionExpireeController =
+      StreamController<void>.broadcast();
+
+  /// Émet quand le serveur refuse le refresh token (révoqué / expiré) :
+  /// la session est morte, l'app doit renvoyer vers l'écran de connexion.
+  Stream<void> get sessionExpiree => _sessionExpireeController.stream;
+
+  /// Indique s'il reste un refresh token utilisable localement.
+  Future<bool> get aUnRefreshToken async {
+    final rt = await getRefreshToken();
+    return rt != null && rt.isNotEmpty;
+  }
+
   /// Tente de rafraîchir le JWT via le refresh token.
-  /// Retourne true si succès, false sinon.
-  Future<bool> tryRefresh(Future<Map<String, dynamic>?> Function(String) refreshCall) async {
+  ///
+  /// MUTUALISÉ : si plusieurs requêtes reçoivent un 401 en même temps, une
+  /// seule requête `POST /auth/refresh` part ; les autres attendent son
+  /// résultat. Indispensable avec la rotation des refresh tokens : renvoyer
+  /// l'ancien refresh token une deuxième fois serait refusé (« révoqué ») et
+  /// déconnecterait l'utilisateur.
+  ///
+  /// [refreshCall] reçoit le refresh token et renvoie la réponse du back
+  /// (`{ token, refreshToken }`) ; il lève une [DioException] en cas d'échec.
+  /// Les jetons ne sont effacés que si le SERVEUR refuse le refresh token
+  /// (400 / 401) — pas sur une simple coupure réseau.
+  Future<bool> tryRefresh(
+      Future<Map<String, dynamic>?> Function(String) refreshCall) {
+    return _refreshEnCours ??=
+        _executerRefresh(refreshCall).whenComplete(() => _refreshEnCours = null);
+  }
+
+  Future<bool> _executerRefresh(
+      Future<Map<String, dynamic>?> Function(String) refreshCall) async {
     final rt = await getRefreshToken();
     if (rt == null || rt.isEmpty) return false;
     try {
       final data = await refreshCall(rt);
-      if (data == null) return false;
-      final newJwt = data['token'] as String?;
-      final newRt  = data['refreshToken'] as String?;
+      final newJwt = data?['token'] as String?;
+      final newRt = data?['refreshToken'] as String?;
       if (newJwt == null || newJwt.isEmpty) return false;
+      // Le refresh token est rotatif : toujours conserver le NOUVEAU.
+      if (newRt != null && newRt.isNotEmpty) await setRefreshToken(newRt);
       await setToken(newJwt);
-      if (newRt != null) await setRefreshToken(newRt);
       return true;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 400) {
+        await clearToken();
+        _sessionExpireeController.add(null);
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -97,5 +138,6 @@ class TokenService {
 
   void dispose() {
     _authController.close();
+    _sessionExpireeController.close();
   }
 }

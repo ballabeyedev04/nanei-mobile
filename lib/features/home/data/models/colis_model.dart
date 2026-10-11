@@ -16,6 +16,7 @@ class ColisModel extends Colis {
     required super.createdAt,
     super.updatedAt,
     super.lotId,
+    super.typeTransport,
   });
 
   factory ColisModel.fromJson(Map<String, dynamic> json) {
@@ -41,6 +42,7 @@ class ColisModel extends Colis {
           ? DateTime.parse(json['updatedAt'])
           : null,
       lotId: json['lot_id']?.toString(),
+      typeTransport: normaliserTypeTransport(json['type_transport']?.toString()),
     );
   }
 
@@ -55,6 +57,7 @@ class ColisModel extends Colis {
         'description': description,
         'createdAt': createdAt.toIso8601String(),
         'lot_id': lotId,
+        'type_transport': typeTransport,
       };
 }
 
@@ -76,6 +79,14 @@ class PersonneModel extends Personne {
       telephone: json['telephone'] ?? '',
     );
   }
+}
+
+/// Ramène le mode de transport à 'aerien' | 'maritime' (null si inconnu).
+String? normaliserTypeTransport(String? raw) {
+  final s = (raw ?? '').trim().toLowerCase().replaceAll('é', 'e');
+  if (s == 'aerien') return 'aerien';
+  if (s == 'maritime') return 'maritime';
+  return null;
 }
 
 /// Ramène le statut renvoyé par l'API au code canonique du back

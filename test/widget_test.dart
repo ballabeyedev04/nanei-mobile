@@ -1,30 +1,27 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nanei/features/home/data/models/colis_model.dart';
 
-import 'package:nanei/main.dart';
-
+// Le back renvoie des codes de statut sans accent (en_attente | recupere |
+// livre) : l'app doit les reconnaître quelle que soit leur forme.
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('normaliserStatut', () {
+    test('codes canoniques du back', () {
+      expect(normaliserStatut('en_attente'), 'en_attente');
+      expect(normaliserStatut('recupere'), 'recupere');
+      expect(normaliserStatut('livre'), 'livre');
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('variantes accentuées et casse', () {
+      expect(normaliserStatut('Livré'), 'livre');
+      expect(normaliserStatut('LIVRÉE'), 'livre');
+      expect(normaliserStatut('Récupéré'), 'recupere');
+      expect(normaliserStatut('En attente'), 'en_attente');
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('valeur absente ou inconnue', () {
+      expect(normaliserStatut(null), 'inconnu');
+      expect(normaliserStatut(''), 'inconnu');
+      expect(normaliserStatut('perdu'), 'perdu');
+    });
   });
 }

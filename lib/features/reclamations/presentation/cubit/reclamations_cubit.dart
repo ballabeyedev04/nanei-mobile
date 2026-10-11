@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nanei/core/utils/api_error.dart';
 import 'package:nanei/core/utils/app_logger.dart';
 import '../../domain/repositories/reclamation_repository.dart';
 import 'reclamations_state.dart';
@@ -17,7 +18,8 @@ class ReclamationsCubit extends Cubit<ReclamationsState> {
     } catch (e, st) {
       AppLogger.error('Erreur dans ReclamationsCubit.loadReclamations', e, st);
       AppLogger.warning('État erreur: ReclamationsCubit', e.toString());
-      emit(ReclamationsError(e.toString()));
+      emit(ReclamationsError(messageErreurApi(e,
+          fallback: 'Impossible de charger les réclamations.')));
     }
   }
 
@@ -40,7 +42,8 @@ class ReclamationsCubit extends Cubit<ReclamationsState> {
     } catch (e, st) {
       AppLogger.error('Erreur dans ReclamationsCubit.creerReclamation', e, st);
       AppLogger.warning('État erreur: ReclamationsCubit création', e.toString());
-      emit(ReclamationsError(e.toString()));
+      emit(ReclamationsError(messageErreurApi(e,
+          fallback: "Impossible d'envoyer la réclamation.")));
       return false;
     }
   }

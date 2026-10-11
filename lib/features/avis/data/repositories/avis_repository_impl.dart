@@ -23,6 +23,10 @@ class AvisRepositoryImpl implements AvisRepository {
       );
       return const Right(null);
     } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return Left(AvisDejaDonneFailure(
+            errorMessage: 'Vous avez déjà donné votre avis sur ce colis.'));
+      }
       return Left(ServerFailure(errorMessage: _mapDioError(e)));
     } catch (e) {
       return Left(ServerFailure(errorMessage: e.toString()));

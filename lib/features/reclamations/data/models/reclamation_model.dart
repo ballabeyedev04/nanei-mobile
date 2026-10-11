@@ -21,7 +21,7 @@ class ReclamationModel extends ReclamationEntity {
       colisId: (json['colis_id'] ?? json['colisId'])?.toString() ?? '',
       type: json['type']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
-      statut: json['statut']?.toString() ?? 'en_attente',
+      statut: json['statut']?.toString() ?? 'ouverte',
       photos: rawPhotos.map((e) => e.toString()).toList(),
       commentaireAdmin:
           (json['commentaire_admin'] ?? json['commentaireAdmin'])?.toString(),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -5,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nanei/core/config/env.dart';
-import 'package:nanei/core/services/token_service.dart';
 import 'package:nanei/injection_container.dart';
 
 class FactureButton extends StatefulWidget {
@@ -21,20 +21,39 @@ class _FactureButtonState extends State<FactureButton> {
   bool _loading = false;
   bool _downloading = false;
 
-  Dio _dio(String token) => Dio(BaseOptions(
-        baseUrl: Env.baseUrl,
-        receiveTimeout: const Duration(seconds: 60),
-        headers: {'Authorization': 'Bearer $token'},
+  /// Téléchargement d'un PDF avec le client Dio PARTAGÉ : il ajoute le jeton
+  /// et le renouvelle automatiquement (refresh token) s'il a expiré — un
+  /// client Dio dédié échouait systématiquement après 1 h.
+  Future<List<int>> _telechargerPdf(String path) async {
+    final resp = await sl<Dio>().get<List<int>>(
+      path,
+      options: Options(
         responseType: ResponseType.bytes,
-      ));
+        receiveTimeout: const Duration(seconds: 60),
+        headers: {'Accept': 'application/pdf'},
+      ),
+    );
+    return resp.data ?? const <int>[];
+  }
 
-  Future<String?> _token() async {
-    final token = await sl<TokenService>().getToken();
-    if (token == null || token.isEmpty) {
-      _showError('Session expirée, veuillez vous reconnecter');
-      return null;
+  /// Message d'erreur du back : en mode `bytes`, le corps JSON d'erreur
+  /// arrive lui aussi en octets — on le décode.
+  String _messageErreur(Object e, String fallback) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is List<int>) {
+        try {
+          final json = jsonDecode(utf8.decode(data));
+          if (json is Map && json['message'] is String) {
+            return json['message'] as String;
+          }
+        } catch (_) {}
+      }
+      if (e.response?.statusCode == 401) {
+        return 'Session expirée, veuillez vous reconnecter';
+      }
     }
-    return token;
+    return fallback;
   }
 
   /// Aperçu inline : GET /factures/:id
@@ -42,21 +61,18 @@ class _FactureButtonState extends State<FactureButton> {
     if (_loading || _downloading) return;
     setState(() => _loading = true);
     try {
-      final token = await _token();
-      if (token == null) return;
-
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/facture-${widget.reference}.pdf');
 
-      final resp = await _dio(token).get(Env.factureApercu(widget.paiementId));
-      await file.writeAsBytes(resp.data as List<int>, flush: true);
+      final octets = await _telechargerPdf(Env.factureApercu(widget.paiementId));
+      await file.writeAsBytes(octets, flush: true);
 
       final result = await OpenFile.open(file.path);
       if (result.type != ResultType.done && mounted) {
         _showError('Impossible d\'ouvrir le PDF. Installez un lecteur PDF.');
       }
     } catch (e) {
-      _showError('Erreur lors de la récupération de la facture');
+      _showError(_messageErreur(e, 'Erreur lors de la récupération de la facture'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -68,18 +84,15 @@ class _FactureButtonState extends State<FactureButton> {
     if (_loading || _downloading) return;
     setState(() => _downloading = true);
     try {
-      final token = await _token();
-      if (token == null) return;
-
       final baseDir = Platform.isAndroid
           ? (await getExternalStorageDirectory() ??
               await getApplicationDocumentsDirectory())
           : await getApplicationDocumentsDirectory();
       final file = File('${baseDir.path}/Facture-${widget.reference}.pdf');
 
-      final resp =
-          await _dio(token).get(Env.factureDownload(widget.paiementId));
-      await file.writeAsBytes(resp.data as List<int>, flush: true);
+      final octets =
+          await _telechargerPdf(Env.factureDownload(widget.paiementId));
+      await file.writeAsBytes(octets, flush: true);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -89,7 +102,7 @@ class _FactureButtonState extends State<FactureButton> {
       ));
       await OpenFile.open(file.path);
     } catch (e) {
-      _showError('Erreur lors du téléchargement de la facture');
+      _showError(_messageErreur(e, 'Erreur lors du téléchargement de la facture'));
     } finally {
       if (mounted) setState(() => _downloading = false);
     }

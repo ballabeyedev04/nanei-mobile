@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nanei/core/errors/failure.dart';
 import 'package:nanei/core/utils/app_logger.dart';
 import '../../domain/usecases/donner_avis.dart';
 import '../../domain/usecases/get_mes_avis.dart';
@@ -26,6 +27,10 @@ class AvisCubit extends Cubit<AvisState> {
     );
     return result.fold(
       (failure) {
+        if (failure is AvisDejaDonneFailure) {
+          emit(const AvisDejaDonne());
+          return true;
+        }
         AppLogger.warning('État erreur: AvisCubit', failure.errorMessage);
         emit(AvisError(failure.errorMessage));
         return false;

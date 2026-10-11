@@ -28,6 +28,7 @@ abstract class ColisRemoteDataSource {
     required String destination,
     required String typeColis,
     String? description,
+    Map<String, dynamic>? tarif,
   });
   Future<List<Colis>> envoyerColisLot(List<Map<String, dynamic>> items);
   Future<List<ClientRecherche>> rechercherClient(String query);
@@ -95,6 +96,7 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
     required String destination,
     required String typeColis,
     String? description,
+    Map<String, dynamic>? tarif,
   }) async {
     final response = await dio.post(
       Env.colisEnvoyer,
@@ -108,6 +110,7 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
         'destination': destination,
         'type_colis': typeColis,
         'description': description,
+        ...?tarif,
       },
     );
     if (response.statusCode != 201) {

@@ -44,3 +44,23 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/app/google-services.json
+
+# Signature et clés de déploiement — JAMAIS dans le dépôt (secrets GitHub)
+android/key.properties
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+AuthKey_*.p8
+
+# Fastlane / Ruby
+android/fastlane/report.xml
+android/fastlane/README.md
+ios/fastlane/report.xml
+ios/fastlane/README.md
+vendor/bundle/
+.bundle/
+
+# Python (scripts tool/ci)
+__pycache__/
+*.pyc
