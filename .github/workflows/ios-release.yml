@@ -389,6 +389,19 @@ jobs:
         run: |
           flutter pub get
 
+      # rive_native (tiré par awesome_dialog) télécharge ses bibliothèques
+      # natives iOS par un script d'installation. Faute de l'avoir lancé, le
+      # plugin le relance PENDANT l'archivage Xcode, depuis ios/Pods, où il ne
+      # trouve pas pubspec.yaml : « ARCHIVE FAILED » après 3 minutes. On
+      # l'exécute ici, depuis la racine, une fois pour l'IPA et le simulateur.
+      - name: Bibliothèques natives rive (iOS)
+        run: |
+          if grep -q '^  rive_native:' pubspec.lock; then
+            dart run rive_native:setup --verbose --platform ios
+          else
+            echo "rive_native absent de pubspec.lock : rien à installer."
+          fi
+
       - name: Clé App Store Connect et signature (depuis les secrets)
         env:
           APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
