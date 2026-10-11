@@ -85,6 +85,10 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   DestinataireManuel? _destinataireManuel;
   bool _isLoadingRecherche = false;
   Timer? _debounceTimer;
+  // Vrai le temps d'une modification PROGRAMMATIQUE du champ de recherche
+  // (sélection d'un résultat, ajout manuel) : le listener doit alors l'ignorer
+  // et ne pas relancer de recherche ni effacer le destinataire choisi.
+  bool _suppressSearch = false;
 
   bool get _hasDestinataire =>
       _selectedDestinataire != null || _destinataireManuel != null;
@@ -249,16 +253,26 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   }
 
   void _onSearchChanged() {
+    // Modification programmatique du champ (sélection / ajout manuel) : on
+    // consomme le verrou et on ne déclenche rien.
+    if (_suppressSearch) {
+      _suppressSearch = false;
+      return;
+    }
     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
       final query = _rechercheController.text.trim();
 
-      // Un destinataire manuel est sélectionné : tant que le texte n'est pas
-      // modifié, on ne relance pas de recherche. S'il est modifié, on annule
-      // la sélection manuelle et on repart sur une recherche classique.
-      if (_destinataireManuel != null) {
+      // Un destinataire est déjà choisi (manuel ou depuis la recherche) :
+      // tant que le texte n'est pas modifié par l'utilisateur, on ne relance
+      // rien. S'il est modifié, on annule la sélection et on repart sur une
+      // recherche classique.
+      if (_hasDestinataire) {
         if (query == _destinataireNomAffiche) return;
-        setState(() => _destinataireManuel = null);
+        setState(() {
+          _destinataireManuel = null;
+          _selectedDestinataire = null;
+        });
       }
 
       if (query.isEmpty) {
@@ -1027,8 +1041,11 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                     return InkWell(
                       onTap: () => setState(() {
                         _selectedDestinataire = c;
+                        _destinataireManuel = null;
+                        _debounceTimer?.cancel();
+                        _suppressSearch = true;
                         _rechercheController.text =
-                            '${c.nom} ${c.prenom}';
+                            '${c.prenom} ${c.nom}'.trim();
                         _resultatsRecherche.clear();
                         _rechercheFocus.unfocus();
                       }),
@@ -1544,7 +1561,9 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         _destinataireManuel = result;
         _selectedDestinataire = null;
         _resultatsRecherche = [];
-        _rechercheController.text = '${result.nom} ${result.prenom}'.trim();
+        _debounceTimer?.cancel();
+        _suppressSearch = true;
+        _rechercheController.text = '${result.prenom} ${result.nom}'.trim();
       });
       _rechercheFocus.unfocus();
     }
