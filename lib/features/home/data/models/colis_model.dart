@@ -31,7 +31,7 @@ class ColisModel extends Colis {
       poids: (json['poids'] as num?)?.toDouble() ?? 0.0,
       prix: (json['prix'] as num?)?.toDouble() ?? 0.0,
       destination: json['destination'] ?? '',
-      statut: json['statut'] ?? 'inconnu',
+      statut: normaliserStatut(json['statut']?.toString()),
       type: json['type'] ?? json['type_colis'] ?? '',
       description: json['description'],
       createdAt: json['createdAt'] != null
@@ -75,5 +75,27 @@ class PersonneModel extends Personne {
       email: json['email'] ?? '',
       telephone: json['telephone'] ?? '',
     );
+  }
+}
+
+/// Ramène le statut renvoyé par l'API au code canonique du back
+/// (`en_attente` | `recupere` | `livre`), quelles que soient casse et accents.
+String normaliserStatut(String? raw) {
+  final s = (raw ?? '').trim().toLowerCase();
+  switch (s) {
+    case 'livre':
+    case 'livré':
+    case 'livrée':
+    case 'livree':
+      return 'livre';
+    case 'recupere':
+    case 'récupéré':
+    case 'recuperé':
+      return 'recupere';
+    case 'en_attente':
+    case 'en attente':
+      return 'en_attente';
+    default:
+      return s.isEmpty ? 'inconnu' : s;
   }
 }

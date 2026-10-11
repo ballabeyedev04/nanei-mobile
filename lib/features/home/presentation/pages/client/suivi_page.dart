@@ -32,7 +32,7 @@ class _SuiviPageState extends State<SuiviPage>
   static const _statutMap = {
     'En attente': 'en_attente',
     'Récupéré': 'recupere',
-    'Livré': 'livré',
+    'Livré': 'livre',
   };
 
   @override
@@ -128,7 +128,7 @@ class _SuiviPageState extends State<SuiviPage>
     final loading = state.loadingEnvoyes || state.loadingRecus;
     final nbTotal = tous.length;
     final nbAttente = _countStatut(tous, 'en_attente');
-    final nbLivres = _countStatut(tous, 'livré');
+    final nbLivres = _countStatut(tous, 'livre');
 
     return SliverToBoxAdapter(
       child: Container(
@@ -471,8 +471,7 @@ class _StatusInfo {
 
 _StatusInfo _statusOf(String raw) {
   switch (raw.toLowerCase()) {
-    case 'livré':
-    case 'livrée':
+    case 'livre':
       return const _StatusInfo(
           'Livré', Color(0xFF059669), Color(0xFFD1FAE5));
     case 'recupere':
@@ -748,7 +747,7 @@ class _SuiviColisCard extends StatelessWidget {
       ),
       _Step(
         label: 'Livré',
-        code: 'livré',
+        code: 'livre',
         icon: Icons.check_circle_rounded,
         color: Color(0xFF059669),
         bg: Color(0xFFD1FAE5),

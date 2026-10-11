@@ -39,9 +39,7 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
   bool _loadingEtiquette = false;
 
   Colis get colis => widget.colis;
-  bool get isLivre =>
-      colis.statut.toLowerCase() == 'livré' ||
-      colis.statut.toLowerCase() == 'livrée';
+  bool get isLivre => colis.statut == 'livre';
 
   @override
   void initState() {
@@ -458,8 +456,7 @@ class _StatusInfo {
 
 _StatusInfo _statusOf(String raw) {
   switch (raw.toLowerCase()) {
-    case 'livré':
-    case 'livrée':
+    case 'livre':
       return const _StatusInfo(
           'Livré', Color(0xFF059669), Color(0xFFD1FAE5));
     case 'recupere':

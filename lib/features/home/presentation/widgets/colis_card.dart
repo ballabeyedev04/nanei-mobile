@@ -22,8 +22,7 @@ class _Status {
 
 _Status _getStatus(String raw) {
   switch (raw.toLowerCase()) {
-    case 'livré':
-    case 'livrée':
+    case 'livre':
       return const _Status(
         label: 'Livré',
         color: Color(0xFF059669),

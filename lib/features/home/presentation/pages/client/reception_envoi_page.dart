@@ -74,7 +74,7 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
     const map = {
       'En attente': 'en_attente',
       'Récupéré': 'recupere',
-      'Livré': 'livré',
+      'Livré': 'livre',
     };
     final code = map[filtre] ?? filtre.toLowerCase();
     return list.where((c) => c.statut.toLowerCase() == code).toList();
