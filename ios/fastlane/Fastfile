@@ -49,6 +49,7 @@ platform :ios do
     if nom_asc && Gem::Version.new(nom) < Gem::Version.new(nom_asc)
       UI.user_error!("pubspec.yaml annonce #{nom}, plus ancienne que la version #{nom_asc} déjà sur App Store Connect.")
     end
+    verifier_version_ouverte(nom)
 
     UI.success("Dernier build sur App Store Connect : #{dernier}#{nom_asc ? " (#{nom_asc})" : ''} → prochain : #{version_code} (#{nom})")
     sortie("version_code", version_code)
@@ -217,6 +218,31 @@ def derniere_version_asc
 rescue StandardError => e
   UI.message("Versions App Store Connect illisibles (#{e.message.lines.first&.strip}) — contrôle de version ignoré.")
   nil
+end
+
+# Une version visible déjà APPROUVÉE (en vente, en attente de mise en vente…)
+# est fermée : Apple refuse tout nouveau build pour elle (« train version
+# closed »), mais seulement à l'ENVOI, après la compilation. On le dit ici.
+ETATS_FERMES = %w[
+  READY_FOR_SALE PENDING_DEVELOPER_RELEASE PENDING_APPLE_RELEASE
+  PROCESSING_FOR_APP_STORE REPLACED_WITH_NEW_VERSION
+  DEVELOPER_REMOVED_FROM_SALE REMOVED_FROM_SALE
+].freeze
+
+def verifier_version_ouverte(nom)
+  app = Spaceship::ConnectAPI::App.find(APP_ID)
+  return unless app
+
+  version = app.get_app_store_versions.find { |v| v.version_string.to_s == nom }
+  etat = version && (version.respond_to?(:app_version_state) && version.app_version_state || version.app_store_state).to_s
+  return unless version && ETATS_FERMES.include?(etat)
+
+  suivante = nom.split(".").map(&:to_i).tap { |p| p[-1] += 1 }.join(".")
+  UI.user_error!("La version #{nom} est déjà approuvée sur l'App Store (#{etat}) : Apple n'accepte plus de build pour elle. Passez `version:` à #{suivante} dans pubspec.yaml.")
+rescue FastlaneCore::Interface::FastlaneError
+  raise
+rescue StandardError => e
+  UI.message("État de la version #{nom} illisible (#{e.message.lines.first&.strip}) — contrôle ignoré.")
 end
 
 # Essai à blanc : Apple fait passer à l'IPA les mêmes contrôles qu'un envoi

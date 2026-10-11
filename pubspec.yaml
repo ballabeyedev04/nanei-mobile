@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.2+13
+version: 1.0.3+14
 
 environment:
   sdk: ^3.9.2
@@ -76,7 +76,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
   mocktail: ^1.0.4
   bloc_test: ^10.0.0
 
@@ -135,6 +135,9 @@ flutter_icons:
   ios: true
   image_path: "assets/icons/logo.png"
   adaptive_icon_background: "#ffffff"
+  # Apple refuse une icône avec transparence (canal alpha) : fond blanc plein.
+  remove_alpha_ios: true
+  background_color_ios: "#ffffff"
   # Image dédiée avec marge de sécurité (60%) : le logo original touche les
   # bords du canevas, ce qui le faisait rogner/zoomer par le masque adaptatif
   # Android (cercle/carré arrondi selon le lanceur), masquant "NANEI" et les

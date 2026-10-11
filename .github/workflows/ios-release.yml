@@ -115,6 +115,27 @@ jobs:
           echo "version_name=$VERSION" >> "$GITHUB_OUTPUT"
           echo "| Version (pubspec.yaml) | **$VERSION** — le numéro de build sera fixé par App Store Connect | ✅ |" >> "$GITHUB_STEP_SUMMARY"
 
+      # Apple refuse à l'ENVOI (après 40 min de compilation) une grande icône
+      # transparente : « Invalid large app icon … can't be transparent or
+      # contain an alpha channel ». On le vérifie ici, en une seconde.
+      - name: Icône App Store sans transparence
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob, sys
+          fautives = []
+          for f in sorted(glob.glob("ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png")):
+              with open(f, "rb") as fh:
+                  entete = fh.read(26)
+              if entete[25] in (4, 6):  # PNG en niveaux de gris + alpha, ou RGBA
+                  fautives.append(f.rsplit("/", 1)[-1])
+          if fautives:
+              print(f"| Icônes iOS | {len(fautives)} avec transparence (canal alpha) | ❌ |")
+              print(f"::error::Icônes iOS avec canal alpha, refusées par Apple : {', '.join(fautives)}. "
+                    "Regénérez-les : dart run flutter_launcher_icons (remove_alpha_ios: true dans pubspec.yaml).", file=sys.stderr)
+              sys.exit(1)
+          print("| Icônes iOS | sans transparence | ✅ |")
+          EOF
+
       - name: Notes de version fr-FR
         env:
           DRY_RUN: ${{ steps.mode.outputs.dry_run }}
