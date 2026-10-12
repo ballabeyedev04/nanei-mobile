@@ -1,4 +1,6 @@
-- Prix de l'envoi calculé par le serveur selon la grille du pays
-- Paiement Wave et Orange Money : montant converti en FCFA, paiement confirmé par l'opérateur
-- « Tout marquer comme lu » dans les notifications
-- Correction : le statut « Livré » s'affiche correctement dans le suivi
+- Listes paginées (Précédent / Suivant) : colis, suivi, notifications, paiements, réclamations, contacts, avis
+- Filtres par statut et compteurs exacts
+- Recherche du destinataire par e-mail ou téléphone exact, données masquées
+- Session conservée après un changement de mot de passe
+- Paiement Orange Money : liens de paiement acceptés
+- Corrections d'affichage (prix au kg, bandeau de prix sur petit écran) et meilleure gestion des erreurs réseau
