@@ -1,10 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:nanei/core/config/env.dart';
+import 'package:nanei/core/utils/pagination.dart';
 import '../../domain/entities/paiement.dart';
 import '../models/paiement_model.dart';
 
 abstract class PaiementRemoteDataSource {
-  Future<List<Paiement>> mesPaiements();
+  /// Sans [page] ni [limit] : liste complète. [statut] : en_attente |
+  /// en_cours | paye | echoue | rembourse (null ou 'tous' = tous).
+  /// `parStatut` du résultat = compteurs sur toutes les pages.
+  Future<PageResultat<Paiement>> mesPaiements(
+      {int? page, int? limit, String? statut});
   Future<String> initierPaiement({required String colisId, required String moyenPaiement});
 }
 
@@ -13,10 +18,17 @@ class PaiementRemoteDataSourceImpl implements PaiementRemoteDataSource {
   const PaiementRemoteDataSourceImpl({required this.dio});
 
   @override
-  Future<List<Paiement>> mesPaiements() async {
-    final response = await dio.get(Env.paiements);
-    final List data = response.data['data'] ?? [];
-    return data.map((e) => PaiementModel.fromJson(e as Map<String, dynamic>)).toList();
+  Future<PageResultat<Paiement>> mesPaiements(
+      {int? page, int? limit, String? statut}) async {
+    final response = await dio.get(
+      Env.paiements,
+      queryParameters: {
+        ...parametresPagination(page: page, limit: limit),
+        ...parametreStatut(statut),
+      },
+    );
+    return PageResultat.depuisReponse<Paiement>(
+        response.data, const ['data'], PaiementModel.fromJson);
   }
 
   @override

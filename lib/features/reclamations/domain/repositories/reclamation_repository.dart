@@ -1,7 +1,10 @@
+import 'package:nanei/core/utils/pagination.dart';
 import '../entities/reclamation_entity.dart';
 
 abstract class ReclamationRepository {
-  Future<List<ReclamationEntity>> getReclamations();
+  /// Sans [page] ni [limit] : liste complète.
+  Future<PageResultat<ReclamationEntity>> getReclamations(
+      {int? page, int? limit});
   Future<ReclamationEntity> creerReclamation({
     required String colisId,
     required String type,

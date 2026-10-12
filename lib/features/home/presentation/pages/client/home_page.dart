@@ -37,7 +37,8 @@ class HomePage extends StatelessWidget {
               context.read<ColisBloc>()
                 ..add(LoadStatistiques())
                 ..add(LoadColisEnvoyes())
-                ..add(LoadColisRecus());
+                ..add(LoadColisRecus())
+                ..add(LoadColisTous());
             },
             color: AppColor.kPrimary,
             child: CustomScrollView(
@@ -288,7 +289,8 @@ class HomePage extends StatelessWidget {
               if (result == true && context.mounted) {
                 context.read<ColisBloc>()
                   ..add(LoadStatistiques())
-                  ..add(LoadColisEnvoyes());
+                  ..add(LoadColisEnvoyes(page: 1))
+                  ..add(LoadColisTous(page: 1));
               }
             },
           ),
@@ -458,7 +460,8 @@ class HomePage extends StatelessWidget {
                     if (result == true && context.mounted) {
                       context.read<ColisBloc>()
                         ..add(LoadStatistiques())
-                        ..add(LoadColisEnvoyes());
+                        ..add(LoadColisEnvoyes(page: 1))
+                        ..add(LoadColisTous(page: 1));
                     }
                   },
                   child: Container(

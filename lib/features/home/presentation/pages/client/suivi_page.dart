@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/utils/pagination.dart';
+import 'package:nanei/core/widgets/barre_pagination.dart';
 import 'package:nanei/features/auth/domain/entities/user.dart';
 import '../../../domain/entities/colis.dart';
 import '../../../domain/entities/personne.dart';
@@ -9,6 +11,7 @@ import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
 import '../../bloc/colis_state.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/filtre_statut_colis.dart';
 import 'colis_detail_page.dart';
 
 class SuiviPage extends StatefulWidget {
@@ -23,17 +26,7 @@ class _SuiviPageState extends State<SuiviPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  String _filtreTous = 'Tous';
-  String _filtreEnvoyes = 'Tous';
-  String _filtreRecus = 'Tous';
-
-  static const _filtres = ['Tous', 'En attente', 'Récupéré', 'Livré'];
-
-  static const _statutMap = {
-    'En attente': 'en_attente',
-    'Récupéré': 'recupere',
-    'Livré': 'livre',
-  };
+  static final _filtres = filtresStatutColis.keys.toList();
 
   @override
   void initState() {
@@ -47,26 +40,15 @@ class _SuiviPageState extends State<SuiviPage>
     super.dispose();
   }
 
-  List<Colis> _applyFiltre(List<Colis> list, String filtre) {
-    if (filtre == 'Tous') return list;
-    final code = _statutMap[filtre] ?? filtre.toLowerCase();
-    return list.where((c) => c.statut.toLowerCase() == code).toList();
-  }
-
-  int _countStatut(List<Colis> list, String code) =>
-      list.where((c) => c.statut.toLowerCase() == code).length;
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ColisBloc, ColisState>(
       builder: (context, state) {
-        final tous = [...state.colisEnvoyes, ...state.colisRecus];
-
         return Scaffold(
           backgroundColor: const Color(0xFFF2F4F8),
           body: NestedScrollView(
             headerSliverBuilder: (_, __) => [
-              _buildHeader(context, state, tous),
+              _buildHeader(context, state),
             ],
             body: Column(
               children: [
@@ -77,24 +59,32 @@ class _SuiviPageState extends State<SuiviPage>
                     children: [
                       _buildTab(
                         context: context,
-                        loading: state.loadingEnvoyes || state.loadingRecus,
-                        colis: tous,
-                        filtre: _filtreTous,
-                        onFiltreChange: (f) => setState(() => _filtreTous = f),
-                        onRefresh: () async {
-                          context.read<ColisBloc>()
-                            ..add(LoadColisEnvoyes())
-                            ..add(LoadColisRecus());
-                        },
+                        loading: state.loadingTous,
+                        colis: state.colisTous,
+                        pagination: state.paginationTous,
+                        onPage: (p) => context
+                            .read<ColisBloc>()
+                            .add(LoadColisTous(page: p)),
+                        // Filtres appliqués par le serveur ; retour en page 1.
+                        filtre: libelleFiltreStatut(state.statutTous),
+                        onFiltreChange: (f) => context.read<ColisBloc>().add(
+                            LoadColisTous(page: 1, statut: codeFiltreStatut(f))),
+                        onRefresh: () async =>
+                            context.read<ColisBloc>().add(LoadColisTous()),
                         isReception: null,
                       ),
                       _buildTab(
                         context: context,
                         loading: state.loadingEnvoyes,
                         colis: state.colisEnvoyes,
-                        filtre: _filtreEnvoyes,
-                        onFiltreChange: (f) =>
-                            setState(() => _filtreEnvoyes = f),
+                        pagination: state.paginationEnvoyes,
+                        onPage: (p) => context
+                            .read<ColisBloc>()
+                            .add(LoadColisEnvoyes(page: p)),
+                        filtre: libelleFiltreStatut(state.statutEnvoyes),
+                        onFiltreChange: (f) => context.read<ColisBloc>().add(
+                            LoadColisEnvoyes(
+                                page: 1, statut: codeFiltreStatut(f))),
                         onRefresh: () async =>
                             context.read<ColisBloc>().add(LoadColisEnvoyes()),
                         isReception: false,
@@ -103,9 +93,14 @@ class _SuiviPageState extends State<SuiviPage>
                         context: context,
                         loading: state.loadingRecus,
                         colis: state.colisRecus,
-                        filtre: _filtreRecus,
-                        onFiltreChange: (f) =>
-                            setState(() => _filtreRecus = f),
+                        pagination: state.paginationRecus,
+                        onPage: (p) => context
+                            .read<ColisBloc>()
+                            .add(LoadColisRecus(page: p)),
+                        filtre: libelleFiltreStatut(state.statutRecus),
+                        onFiltreChange: (f) => context.read<ColisBloc>().add(
+                            LoadColisRecus(
+                                page: 1, statut: codeFiltreStatut(f))),
                         onRefresh: () async =>
                             context.read<ColisBloc>().add(LoadColisRecus()),
                         isReception: true,
@@ -124,11 +119,16 @@ class _SuiviPageState extends State<SuiviPage>
   // ── Header ─────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(
-      BuildContext context, ColisState state, List<Colis> tous) {
-    final loading = state.loadingEnvoyes || state.loadingRecus;
-    final nbTotal = tous.length;
-    final nbAttente = _countStatut(tous, 'en_attente');
-    final nbLivres = _countStatut(tous, 'livre');
+      BuildContext context, ColisState state) {
+    // Compteurs `par_statut` (toutes pages, indépendants des filtres) :
+    // somme envoyés + reçus.
+    final parStatut =
+        additionnerParStatut(state.parStatutEnvoyes, state.parStatutRecus);
+    final nbTotal = parStatut['total'] ?? 0;
+    final nbAttente = parStatut['en_attente'] ?? 0;
+    final nbLivres = parStatut['livre'] ?? 0;
+    final loading = (state.loadingEnvoyes || state.loadingRecus) &&
+        parStatut.isEmpty;
 
     return SliverToBoxAdapter(
       child: Container(
@@ -170,7 +170,8 @@ class _SuiviPageState extends State<SuiviPage>
                     GestureDetector(
                       onTap: () => context.read<ColisBloc>()
                         ..add(LoadColisEnvoyes())
-                        ..add(LoadColisRecus()),
+                        ..add(LoadColisRecus())
+                        ..add(LoadColisTous()),
                       child: Container(
                         width: 40,
                         height: 40,
@@ -350,6 +351,8 @@ class _SuiviPageState extends State<SuiviPage>
     required BuildContext context,
     required bool loading,
     required List<Colis> colis,
+    required InfoPagination pagination,
+    required ValueChanged<int> onPage,
     required String filtre,
     required ValueChanged<String> onFiltreChange,
     required Future<void> Function() onRefresh,
@@ -362,7 +365,8 @@ class _SuiviPageState extends State<SuiviPage>
       );
     }
 
-    final filtered = _applyFiltre(colis, filtre);
+    // Déjà filtrée par statut côté serveur.
+    final filtered = colis;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +417,8 @@ class _SuiviPageState extends State<SuiviPage>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            '${filtered.length} colis',
+            // Total du filtre courant, toutes pages.
+            '${pagination.total} colis',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -434,9 +439,18 @@ class _SuiviPageState extends State<SuiviPage>
                   onRefresh: onRefresh,
                   color: AppColor.kPrimary,
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                    itemCount: filtered.length,
+                    // + 1 : barre de pagination en fin de liste.
+                    itemCount: filtered.length + 1,
                     itemBuilder: (_, i) {
+                      if (i == filtered.length) {
+                        return BarrePagination(
+                          pagination: pagination,
+                          onPage: onPage,
+                          chargement: loading,
+                        );
+                      }
                       final c = filtered[i];
                       final reception = isReception ??
                           state_isReception(c, widget.user?.id);

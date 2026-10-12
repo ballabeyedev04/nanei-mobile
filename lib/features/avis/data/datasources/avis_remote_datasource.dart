@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:nanei/core/config/env.dart';
+import 'package:nanei/core/utils/pagination.dart';
 import '../models/avis_model.dart';
 
 abstract class AvisRemoteDataSource {
   Future<void> donnerAvis(
       {required String colisId, required int note, String? commentaire});
-  Future<List<AvisModel>> mesAvis();
+  /// Sans [page] ni [limit] : liste complète (sert à savoir si un colis est
+  /// déjà noté).
+  Future<PageResultat<AvisModel>> mesAvis({int? page, int? limit});
 }
 
 class AvisRemoteDataSourceImpl implements AvisRemoteDataSource {
@@ -29,14 +32,14 @@ class AvisRemoteDataSourceImpl implements AvisRemoteDataSource {
   }
 
   @override
-  Future<List<AvisModel>> mesAvis() async {
-    final response = await dio.get(Env.avis);
+  Future<PageResultat<AvisModel>> mesAvis({int? page, int? limit}) async {
+    final response = await dio.get(
+      Env.avis,
+      queryParameters: parametresPagination(page: page, limit: limit),
+    );
     // Le backend renvoie { success, avis: [...] } ; on tolère aussi 'data'
     // au cas où l'enveloppe serait un jour normalisée.
-    final body = response.data as Map<String, dynamic>? ?? const {};
-    final List data = (body['avis'] ?? body['data'] ?? const []) as List;
-    return data
-        .map((e) => AvisModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return PageResultat.depuisReponse<AvisModel>(
+        response.data, const ['avis', 'data'], AvisModel.fromJson);
   }
 }

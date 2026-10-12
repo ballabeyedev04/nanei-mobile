@@ -29,8 +29,10 @@ class ColisModel extends Colis {
       recepteur: json['recepteur'] != null
           ? PersonneModel.fromJson(json['recepteur'])
           : null,
-      poids: (json['poids'] as num?)?.toDouble() ?? 0.0,
-      prix: (json['prix'] as num?)?.toDouble() ?? 0.0,
+      // Nombre OU chaîne : une colonne NUMERIC/DECIMAL sort en texte de
+      // Postgres (« 12.50 ») — `as num` faisait alors planter toute la liste.
+      poids: _nombre(json['poids']),
+      prix: _nombre(json['prix']),
       destination: json['destination'] ?? '',
       statut: normaliserStatut(json['statut']?.toString()),
       type: json['type'] ?? json['type_colis'] ?? '',
@@ -79,6 +81,11 @@ class PersonneModel extends Personne {
       telephone: json['telephone'] ?? '',
     );
   }
+}
+
+double _nombre(dynamic v) {
+  if (v is num) return v.toDouble();
+  return double.tryParse('${v ?? ''}') ?? 0.0;
 }
 
 /// Ramène le mode de transport à 'aerien' | 'maritime' (null si inconnu).

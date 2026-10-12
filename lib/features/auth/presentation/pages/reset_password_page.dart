@@ -68,7 +68,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     try {
       final dio = sl<Dio>();
       await dio.post(
-        '${Env.baseUrl}/auth/reset-password',
+        // Chemin relatif : le client Dio commun préfixe baseUrl.
+        Env.authResetPassword,
         data: {
           'email': widget.email,
           'code': _codeCtrl.text.trim(),

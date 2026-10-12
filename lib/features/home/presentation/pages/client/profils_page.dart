@@ -975,7 +975,16 @@ class _ProfilsPageState extends State<ProfilsPage>
       backgroundColor: Colors.transparent,
       builder: (_) => _PasswordSheet(
         onSave: (data) async {
-          await sl<Dio>().put(Env.accountChangePassword, data: data);
+          final res = await sl<Dio>().put(Env.accountChangePassword, data: data);
+          // Le back coupe toutes les autres sessions et renvoie de nouveaux
+          // jetons pour celle-ci : sans les enregistrer, l'app serait
+          // déconnectée au prochain appel.
+          final corps = res.data;
+          if (corps is Map && corps['token'] is String && corps['refreshToken'] is String) {
+            final tokens = sl<TokenService>();
+            await tokens.setToken(corps['token'] as String);
+            await tokens.setRefreshToken(corps['refreshToken'] as String);
+          }
         },
       ),
     );

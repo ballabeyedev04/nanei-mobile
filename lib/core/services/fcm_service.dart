@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:nanei/core/config/env.dart';
 import 'package:nanei/core/constants/storage_keys.dart';
 import 'package:nanei/core/services/token_service.dart';
@@ -43,6 +44,11 @@ class FcmService {
       if (success) await prefs.remove(StorageKeys.fcmTokenPending);
     }
   }
+
+  /// Point d'entrée de test de [_envoyerTokenAuBackend] (sans Firebase).
+  @visibleForTesting
+  static Future<bool> envoyerTokenAuBackendPourTest(String token) =>
+      _envoyerTokenAuBackend(token);
 
   static Future<bool> _envoyerTokenAuBackend(String token) async {
     try {

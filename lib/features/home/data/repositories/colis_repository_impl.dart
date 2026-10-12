@@ -1,6 +1,7 @@
+import 'package:nanei/core/utils/pagination.dart';
 import '../../domain/entities/colis.dart';
+import '../../domain/entities/page_notifications.dart';
 import '../../domain/entities/client_recherche.dart';
-import '../../domain/entities/notification_model.dart';
 import '../../domain/entities/country_pricing.dart';
 import '../../domain/entities/prix_calcule.dart';
 import '../../domain/entities/suivi_public.dart';
@@ -12,12 +13,15 @@ class ColisRepositoryImpl implements ColisRepository {
   const ColisRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<List<Colis>> getColisEnvoyes() =>
-      remoteDataSource.getColisEnvoyes();
+  Future<PageResultat<Colis>> getColisEnvoyes(
+          {int? page, int? limit, String? statut}) =>
+      remoteDataSource.getColisEnvoyes(
+          page: page, limit: limit, statut: statut);
 
   @override
-  Future<List<Colis>> getColisRecus() =>
-      remoteDataSource.getColisRecus();
+  Future<PageResultat<Colis>> getColisRecus(
+          {int? page, int? limit, String? statut}) =>
+      remoteDataSource.getColisRecus(page: page, limit: limit, statut: statut);
 
   @override
   Future<Colis> rechercherColisParReference(String reference) =>
@@ -58,12 +62,16 @@ class ColisRepositoryImpl implements ColisRepository {
       remoteDataSource.rechercherClient(query);
 
   @override
-  Future<List<NotificationModel>> getNotifications() =>
-      remoteDataSource.getNotifications();
+  Future<PageNotifications> getNotifications({int? page, int? limit}) =>
+      remoteDataSource.getNotifications(page: page, limit: limit);
 
   @override
   Future<void> marquerNotificationLue(String id) =>
       remoteDataSource.marquerNotificationLue(id);
+
+  @override
+  Future<void> marquerToutesNotificationsLues() =>
+      remoteDataSource.marquerToutesNotificationsLues();
 
   @override
   Future<List<CountryItem>> getCountries() =>

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/widgets/barre_pagination.dart';
 import '../cubit/avis_cubit.dart';
 import '../cubit/avis_state.dart';
 import '../widgets/star_rating.dart';
@@ -20,6 +21,7 @@ class _MesAvisPageState extends State<MesAvisPage> {
     context.read<AvisCubit>().chargerMesAvis();
   }
 
+  /// Tirer pour rafraîchir : recharge la page courante.
   Future<void> _refresh() async {
     context.read<AvisCubit>().chargerMesAvis();
   }
@@ -89,7 +91,7 @@ class _MesAvisPageState extends State<MesAvisPage> {
           if (state is AvisCharges) {
             final avis = state.avis;
 
-            if (avis.isEmpty) {
+            if (avis.isEmpty && state.pagination.pages <= 1) {
               return RefreshIndicator(
                 color: AppColor.kPrimary,
                 onRefresh: _refresh,
@@ -130,10 +132,20 @@ class _MesAvisPageState extends State<MesAvisPage> {
               color: AppColor.kPrimary,
               onRefresh: _refresh,
               child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
-                itemCount: avis.length,
+                // + 1 : barre de pagination en fin de liste.
+                itemCount: avis.length + 1,
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
+                  if (index == avis.length) {
+                    return BarrePagination(
+                      pagination: state.pagination,
+                      libelleTotal: 'avis',
+                      onPage: (p) =>
+                          context.read<AvisCubit>().chargerMesAvis(page: p),
+                    );
+                  }
                   final a = avis[index];
                   return Container(
                     padding: const EdgeInsets.all(16),

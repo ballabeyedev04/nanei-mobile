@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:nanei/core/utils/pagination.dart';
 import '../../domain/entities/contact_favori.dart';
 
 abstract class ContactsState extends Equatable {
@@ -17,9 +18,11 @@ class ContactsLoading extends ContactsState {
 
 class ContactsLoaded extends ContactsState {
   final List<ContactFavori> contacts;
-  const ContactsLoaded(this.contacts);
+  final InfoPagination pagination;
+  ContactsLoaded(this.contacts, {InfoPagination? pagination})
+      : pagination = pagination ?? InfoPagination.unePage(contacts.length);
   @override
-  List<Object?> get props => [contacts];
+  List<Object?> get props => [contacts, pagination];
 }
 
 class ContactsError extends ContactsState {

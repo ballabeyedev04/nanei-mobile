@@ -2,28 +2,51 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/widgets/barre_pagination.dart';
 import 'package:nanei/features/auth/domain/entities/user.dart';
-import 'package:nanei/injection_container.dart';
-import 'package:dio/dio.dart';
 import '../../../domain/entities/notification_model.dart';
 import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
 import '../../bloc/colis_state.dart';
 import '../../widgets/empty_state.dart';
 
-class NotificationsPage extends StatelessWidget {
+class NotificationsPage extends StatefulWidget {
   final User? user;
   final VoidCallback? onVoirColis;
 
   const NotificationsPage({super.key, this.user, this.onVoirColis});
 
   @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  final _scrollController = ScrollController();
+
+  VoidCallback? get onVoirColis => widget.onVoirColis;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _allerALaPage(int page) {
+    context.read<ColisBloc>().add(LoadNotifications(page: page));
+    remonterEnHaut(_scrollController);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<ColisBloc, ColisState>(
       builder: (context, state) {
         final notifications = state.notifications;
-        final unreadCount = notifications.where((n) => !n.lue).length;
-        final readCount = notifications.length - unreadCount;
+        final pagination = state.paginationNotifications;
+        // Totaux serveur, toutes pages confondues (`non_lues` pour les non
+        // lues) : la liste ne contient que la page affichée.
+        final total = pagination.total;
+        final unreadCount = state.nonLues;
+        final readCount = total - unreadCount < 0 ? 0 : total - unreadCount;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF2F4F8),
@@ -32,15 +55,16 @@ class NotificationsPage extends StatelessWidget {
                 context.read<ColisBloc>().add(LoadNotifications()),
             color: AppColor.kPrimary,
             child: CustomScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 _buildHeader(
                   context,
-                  total: notifications.length,
+                  total: total,
                   unread: unreadCount,
                   read: readCount,
                 ),
-                if (notifications.isEmpty)
+                if (notifications.isEmpty && pagination.pages <= 1)
                   SliverFillRemaining(
                     child: buildEmptyState(
                       icon: Icons.notifications_none_rounded,
@@ -49,7 +73,7 @@ class NotificationsPage extends StatelessWidget {
                   )
                 else
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => _NotifCard(
@@ -66,6 +90,18 @@ class NotificationsPage extends StatelessWidget {
                           },
                         ),
                         childCount: notifications.length,
+                      ),
+                    ),
+                  ),
+                if (notifications.isNotEmpty || pagination.pages > 1)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                    sliver: SliverToBoxAdapter(
+                      child: BarrePagination(
+                        pagination: pagination,
+                        onPage: _allerALaPage,
+                        chargement: state.loadingNotifications,
+                        libelleTotal: 'notifications',
                       ),
                     ),
                   ),
@@ -249,13 +285,9 @@ class NotificationsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _markAllAsRead(BuildContext context) async {
-    try {
-      await sl<Dio>().post('/client/notifications/mark-all-read');
-    } catch (_) {}
-    if (context.mounted) {
-      context.read<ColisBloc>().add(LoadNotifications());
-    }
+  void _markAllAsRead(BuildContext context) {
+    // Le bloc appelle l'API puis recharge la page courante (et `non_lues`).
+    context.read<ColisBloc>().add(MarquerToutesNotificationsLuesRequested());
   }
 }
 

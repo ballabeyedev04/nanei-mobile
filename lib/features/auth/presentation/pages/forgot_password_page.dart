@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/config/env.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/theme/app_color.dart';
+import '../../../../core/utils/api_error.dart';
 import '../../../../injection_container.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -33,7 +34,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     try {
       final dio = sl<Dio>();
       await dio.post(
-        '${Env.baseUrl}/auth/oublier-password',
+        // Chemin relatif : le client Dio commun préfixe baseUrl.
+        Env.authOublierPassword,
         data: {'email': _emailCtrl.text.trim()},
       );
       if (!mounted) return;
@@ -43,8 +45,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         arguments: _emailCtrl.text.trim(),
       );
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] as String? ??
-          'Une erreur est survenue. Vérifiez votre connexion.';
+      // `messageErreurApi` : `details` Joi compris, et sans planter sur un
+      // corps NON JSON (page HTML d'un proxy) — `data['message']` levait
+      // alors une exception hors du `catch` et le bouton restait bloqué sur
+      // son indicateur de chargement.
+      final msg = messageErreurApi(e,
+          fallback: 'Une erreur est survenue. Vérifiez votre connexion.');
       if (mounted) setState(() { _error = msg; _loading = false; });
     } catch (_) {
       if (mounted) setState(() { _error = 'Une erreur inattendue est survenue.'; _loading = false; });

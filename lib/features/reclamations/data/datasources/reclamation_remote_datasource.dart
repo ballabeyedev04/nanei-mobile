@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:nanei/core/utils/media_type.dart';
 import 'package:nanei/core/config/env.dart';
+import 'package:nanei/core/utils/pagination.dart';
 
 import '../models/reclamation_model.dart';
 
 abstract class ReclamationRemoteDataSource {
-  Future<List<ReclamationModel>> getReclamations();
+  /// Sans [page] ni [limit] : liste complète.
+  Future<PageResultat<ReclamationModel>> getReclamations(
+      {int? page, int? limit});
   Future<ReclamationModel> creerReclamation({
     required String colisId,
     required String type,
@@ -20,12 +23,14 @@ class ReclamationRemoteDataSourceImpl implements ReclamationRemoteDataSource {
   const ReclamationRemoteDataSourceImpl({required this.dio});
 
   @override
-  Future<List<ReclamationModel>> getReclamations() async {
-    final response = await dio.get(Env.reclamations);
-    final List data = response.data['reclamations'] ?? [];
-    return data
-        .map((e) => ReclamationModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+  Future<PageResultat<ReclamationModel>> getReclamations(
+      {int? page, int? limit}) async {
+    final response = await dio.get(
+      Env.reclamations,
+      queryParameters: parametresPagination(page: page, limit: limit),
+    );
+    return PageResultat.depuisReponse<ReclamationModel>(
+        response.data, const ['reclamations'], ReclamationModel.fromJson);
   }
 
   @override

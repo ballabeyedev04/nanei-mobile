@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/utils/pagination.dart';
+import 'package:nanei/core/widgets/barre_pagination.dart';
 import 'package:nanei/features/auth/domain/entities/user.dart';
 import '../../bloc/colis_bloc.dart';
 import '../../bloc/colis_event.dart';
@@ -9,6 +11,7 @@ import '../../bloc/colis_state.dart';
 import '../../../domain/entities/colis.dart';
 import '../../widgets/colis_card.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/filtre_statut_colis.dart';
 import 'envoi_colis_page.dart';
 import 'lot_colis_page.dart';
 
@@ -23,10 +26,7 @@ class ReceptionEnvoiPage extends StatefulWidget {
 class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _filtreRecus = 'Tous';
-  String _filtreEnvoyes = 'Tous';
-
-  static const _filtres = ['Tous', 'En attente', 'Récupéré', 'Livré'];
+  static final _filtres = filtresStatutColis.keys.toList();
 
   @override
   void initState() {
@@ -69,17 +69,6 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
     return result;
   }
 
-  List<Colis> _applyFiltre(List<Colis> list, String filtre) {
-    if (filtre == 'Tous') return list;
-    const map = {
-      'En attente': 'en_attente',
-      'Récupéré': 'recupere',
-      'Livré': 'livre',
-    };
-    final code = map[filtre] ?? filtre.toLowerCase();
-    return list.where((c) => c.statut.toLowerCase() == code).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ColisBloc, ColisState>(
@@ -101,9 +90,15 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
                         context: context,
                         loading: state.loadingRecus,
                         colis: state.colisRecus,
-                        filtre: _filtreRecus,
-                        onFiltreChange: (f) =>
-                            setState(() => _filtreRecus = f),
+                        pagination: state.paginationRecus,
+                        onPage: (p) => context
+                            .read<ColisBloc>()
+                            .add(LoadColisRecus(page: p)),
+                        // Filtre appliqué par le serveur ; retour en page 1.
+                        filtre: libelleFiltreStatut(state.statutRecus),
+                        onFiltreChange: (f) => context.read<ColisBloc>().add(
+                            LoadColisRecus(
+                                page: 1, statut: codeFiltreStatut(f))),
                         onRefresh: () async =>
                             context.read<ColisBloc>().add(LoadColisRecus()),
                         isReception: true,
@@ -112,9 +107,14 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
                         context: context,
                         loading: state.loadingEnvoyes,
                         colis: state.colisEnvoyes,
-                        filtre: _filtreEnvoyes,
-                        onFiltreChange: (f) =>
-                            setState(() => _filtreEnvoyes = f),
+                        pagination: state.paginationEnvoyes,
+                        onPage: (p) => context
+                            .read<ColisBloc>()
+                            .add(LoadColisEnvoyes(page: p)),
+                        filtre: libelleFiltreStatut(state.statutEnvoyes),
+                        onFiltreChange: (f) => context.read<ColisBloc>().add(
+                            LoadColisEnvoyes(
+                                page: 1, statut: codeFiltreStatut(f))),
                         onRefresh: () async =>
                             context.read<ColisBloc>().add(LoadColisEnvoyes()),
                         isReception: false,
@@ -194,7 +194,8 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
                     Expanded(
                         child: _summaryCard(
                             label: 'Reçus',
-                            count: state.colisRecus.length,
+                            count: state.parStatutRecus['total'] ??
+                                state.paginationRecus.total,
                             icon: Icons.move_to_inbox_rounded,
                             color: const Color(0xFF2563EB),
                             bg: const Color(0xFFEFF6FF))),
@@ -202,7 +203,8 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
                     Expanded(
                         child: _summaryCard(
                             label: 'Envoyés',
-                            count: state.colisEnvoyes.length,
+                            count: state.parStatutEnvoyes['total'] ??
+                                state.paginationEnvoyes.total,
                             icon: Icons.send_rounded,
                             color: AppColor.kPrimary,
                             bg: AppColor.kAccentSoft)),
@@ -210,8 +212,10 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
                     Expanded(
                         child: _summaryCard(
                             label: 'Total',
-                            count: state.colisRecus.length +
-                                state.colisEnvoyes.length,
+                            count: (state.parStatutRecus['total'] ??
+                                    state.paginationRecus.total) +
+                                (state.parStatutEnvoyes['total'] ??
+                                    state.paginationEnvoyes.total),
                             icon: Icons.all_inbox_rounded,
                             color: const Color(0xFF7C3AED),
                             bg: const Color(0xFFF5F3FF))),
@@ -319,6 +323,8 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
     required BuildContext context,
     required bool loading,
     required List<Colis> colis,
+    required InfoPagination pagination,
+    required ValueChanged<int> onPage,
     required String filtre,
     required ValueChanged<String> onFiltreChange,
     required Future<void> Function() onRefresh,
@@ -331,7 +337,8 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
       );
     }
 
-    final filtered = _applyFiltre(colis, filtre);
+    // Déjà filtrée par statut côté serveur.
+    final filtered = colis;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,7 +389,8 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            '${filtered.length} colis',
+            // Total du filtre courant, toutes pages.
+            '${pagination.total} colis',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -408,11 +416,21 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
                   color: AppColor.kPrimary,
                   child: Builder(builder: (context) {
                     final groupes = _regrouperParLot(filtered);
+                    // Dernier élément : la barre de pagination (en fin de
+                    // liste pour ne pas être masquée par le bouton flottant).
                     return ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding:
                           const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                      itemCount: groupes.length,
+                      itemCount: groupes.length + 1,
                       itemBuilder: (_, i) {
+                        if (i == groupes.length) {
+                          return BarrePagination(
+                            pagination: pagination,
+                            onPage: onPage,
+                            chargement: loading,
+                          );
+                        }
                         final groupe = groupes[i];
                         final estUnLot = groupe.tousLesColisDuLot.length > 1;
                         return Column(
@@ -560,7 +578,9 @@ class _ReceptionEnvoiPageState extends State<ReceptionEnvoiPage>
       MaterialPageRoute(builder: (_) => const EnvoiColisPage()),
     );
     if (result == true && context.mounted) {
-      context.read<ColisBloc>().add(LoadColisEnvoyes());
+      context.read<ColisBloc>()
+        ..add(LoadColisEnvoyes(page: 1))
+        ..add(LoadColisTous(page: 1));
     }
   }
 }

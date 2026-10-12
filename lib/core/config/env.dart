@@ -28,6 +28,10 @@ class Env {
   static String get authRegister => _get('AUTH_REGISTER_PATH', '/auth/register');
   static String get authRefresh  => _get('AUTH_REFRESH_PATH',  '/auth/refresh');
   static String get authLogout   => _get('AUTH_LOGOUT_PATH',   '/auth/logout');
+  // Mot de passe oublié (code OTP par e-mail) puis réinitialisation — routes
+  // de `auth.route.js`, relatives à baseUrl comme toutes les autres.
+  static String get authOublierPassword => '/auth/oublier-password';
+  static String get authResetPassword   => '/auth/reset-password';
 
   // ── Colis ─────────────────────────────────────────────────────────────────
   static String get colisEnvoyer        => '/client/envoie-colis';
@@ -48,6 +52,7 @@ class Env {
   // ── Notifications ─────────────────────────────────────────────────────────
   static String get notificationsMes  => '/client/mes-notifications';
   static String notificationLire(String id) => '/client/lire-notifications/$id';
+  static String get notificationsToutesLues => '/client/notifications/mark-all-read';
 
   // ── Account ───────────────────────────────────────────────────────────────
   static String get accountMe            => '/account/me';

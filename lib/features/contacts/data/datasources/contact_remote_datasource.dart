@@ -1,10 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:nanei/core/config/env.dart';
+import 'package:nanei/core/utils/pagination.dart';
 
 import '../models/contact_favori_model.dart';
 
 abstract class ContactRemoteDataSource {
-  Future<List<ContactFavoriModel>> getContacts();
+  /// Sans [page] ni [limit] : liste complète (sélecteur de destinataire).
+  Future<PageResultat<ContactFavoriModel>> getContacts(
+      {int? page, int? limit});
   Future<ContactFavoriModel> createContact(Map<String, dynamic> data);
   Future<ContactFavoriModel> updateContact(String id, Map<String, dynamic> data);
   Future<void> deleteContact(String id);
@@ -23,13 +26,14 @@ class ContactRemoteDataSourceImpl implements ContactRemoteDataSource {
   }
 
   @override
-  Future<List<ContactFavoriModel>> getContacts() async {
-    final response = await dio.get(Env.contacts);
-    final body = response.data as Map<String, dynamic>? ?? const {};
-    final List data = (body['contacts'] ?? body['data'] ?? const []) as List;
-    return data
-        .map((e) => ContactFavoriModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+  Future<PageResultat<ContactFavoriModel>> getContacts(
+      {int? page, int? limit}) async {
+    final response = await dio.get(
+      Env.contacts,
+      queryParameters: parametresPagination(page: page, limit: limit),
+    );
+    return PageResultat.depuisReponse<ContactFavoriModel>(
+        response.data, const ['contacts', 'data'], ContactFavoriModel.fromJson);
   }
 
   @override

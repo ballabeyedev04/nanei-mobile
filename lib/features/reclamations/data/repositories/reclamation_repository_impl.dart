@@ -1,3 +1,4 @@
+import 'package:nanei/core/utils/pagination.dart';
 import '../../domain/entities/reclamation_entity.dart';
 import '../../domain/repositories/reclamation_repository.dart';
 import '../datasources/reclamation_remote_datasource.dart';
@@ -7,8 +8,12 @@ class ReclamationRepositoryImpl implements ReclamationRepository {
   const ReclamationRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<List<ReclamationEntity>> getReclamations() =>
-      remoteDataSource.getReclamations();
+  Future<PageResultat<ReclamationEntity>> getReclamations(
+      {int? page, int? limit}) async {
+    final res = await remoteDataSource.getReclamations(page: page, limit: limit);
+    return PageResultat<ReclamationEntity>(
+        elements: res.elements, pagination: res.pagination);
+  }
 
   @override
   Future<ReclamationEntity> creerReclamation({

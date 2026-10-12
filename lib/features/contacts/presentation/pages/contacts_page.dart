@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/widgets/barre_pagination.dart';
 import '../../domain/entities/contact_favori.dart';
 import '../cubit/contacts_cubit.dart';
 import '../cubit/contacts_state.dart';
@@ -58,18 +59,30 @@ class _ContactsPageState extends State<ContactsPage> {
             return _buildError(state.message);
           }
           if (state is ContactsLoaded) {
-            if (state.contacts.isEmpty) {
+            if (state.contacts.isEmpty && state.pagination.pages <= 1) {
               return _buildEmpty();
             }
             return RefreshIndicator(
+              // Recharge la page courante.
               onRefresh: () =>
                   context.read<ContactsCubit>().loadContacts(),
               color: AppColor.kPrimary,
               child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: state.contacts.length,
-                itemBuilder: (_, i) =>
-                    _buildContactItem(state.contacts[i]),
+                // + 1 : barre de pagination en fin de liste.
+                itemCount: state.contacts.length + 1,
+                itemBuilder: (_, i) {
+                  if (i == state.contacts.length) {
+                    return BarrePagination(
+                      pagination: state.pagination,
+                      libelleTotal: 'contacts',
+                      onPage: (p) =>
+                          context.read<ContactsCubit>().loadContacts(page: p),
+                    );
+                  }
+                  return _buildContactItem(state.contacts[i]);
+                },
               ),
             );
           }

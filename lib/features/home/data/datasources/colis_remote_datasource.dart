@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:nanei/core/config/env.dart';
+import 'package:nanei/core/utils/pagination.dart';
+import '../../domain/entities/page_notifications.dart';
 import '../../domain/entities/colis.dart';
 import '../../domain/entities/client_recherche.dart';
 import '../../domain/entities/notification_model.dart';
@@ -16,8 +18,14 @@ import '../models/suivi_public_model.dart';
 // ── Interface ─────────────────────────────────────────────────────────────────
 
 abstract class ColisRemoteDataSource {
-  Future<List<Colis>> getColisEnvoyes();
-  Future<List<Colis>> getColisRecus();
+  /// Sans [page] ni [limit] : liste complète (une seule page).
+  /// [statut] : en_attente | recupere | livre (null ou 'tous' = tous), filtré
+  /// côté serveur avant la pagination. `parStatut` du résultat = compteurs sur
+  /// toutes les pages, indépendants du filtre.
+  Future<PageResultat<Colis>> getColisEnvoyes(
+      {int? page, int? limit, String? statut});
+  Future<PageResultat<Colis>> getColisRecus(
+      {int? page, int? limit, String? statut});
   Future<Colis> rechercherColisParReference(String reference);
   Future<Map<String, int>> getStatistiques();
   Future<String?> envoyerColis({
@@ -32,8 +40,9 @@ abstract class ColisRemoteDataSource {
   });
   Future<List<Colis>> envoyerColisLot(List<Map<String, dynamic>> items);
   Future<List<ClientRecherche>> rechercherClient(String query);
-  Future<List<NotificationModel>> getNotifications();
+  Future<PageNotifications> getNotifications({int? page, int? limit});
   Future<void> marquerNotificationLue(String id);
+  Future<void> marquerToutesNotificationsLues();
   Future<List<CountryItem>> getCountries();
   Future<CountryPricing> getPricingByCountry(String countryId);
 
@@ -57,17 +66,31 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
   const ColisRemoteDataSourceImpl({required this.dio});
 
   @override
-  Future<List<Colis>> getColisEnvoyes() async {
-    final response = await dio.get(Env.colisEnvoyes);
-    final List data = response.data['data'] ?? [];
-    return data.map((e) => ColisModel.fromJson(e)).toList();
+  Future<PageResultat<Colis>> getColisEnvoyes(
+      {int? page, int? limit, String? statut}) async {
+    final response = await dio.get(
+      Env.colisEnvoyes,
+      queryParameters: {
+        ...parametresPagination(page: page, limit: limit),
+        ...parametreStatut(statut),
+      },
+    );
+    return PageResultat.depuisReponse<Colis>(
+        response.data, const ['data'], ColisModel.fromJson);
   }
 
   @override
-  Future<List<Colis>> getColisRecus() async {
-    final response = await dio.get(Env.colisRecus);
-    final List data = response.data['data'] ?? [];
-    return data.map((e) => ColisModel.fromJson(e)).toList();
+  Future<PageResultat<Colis>> getColisRecus(
+      {int? page, int? limit, String? statut}) async {
+    final response = await dio.get(
+      Env.colisRecus,
+      queryParameters: {
+        ...parametresPagination(page: page, limit: limit),
+        ...parametreStatut(statut),
+      },
+    );
+    return PageResultat.depuisReponse<Colis>(
+        response.data, const ['data'], ColisModel.fromJson);
   }
 
   @override
@@ -148,15 +171,35 @@ class ColisRemoteDataSourceImpl implements ColisRemoteDataSource {
   }
 
   @override
-  Future<List<NotificationModel>> getNotifications() async {
-    final response = await dio.get(Env.notificationsMes);
-    final List data = response.data['data'] ?? [];
-    return data.map((e) => nm.NotificationDataModel.fromJson(e)).toList();
+  Future<PageNotifications> getNotifications({int? page, int? limit}) async {
+    final response = await dio.get(
+      Env.notificationsMes,
+      queryParameters: parametresPagination(page: page, limit: limit),
+    );
+    final resultat = PageResultat.depuisReponse<NotificationModel>(
+        response.data, const ['data'], nm.NotificationDataModel.fromJson);
+    final body = response.data is Map ? response.data as Map : const {};
+    final nonLues = body['non_lues'];
+    return PageNotifications(
+      elements: resultat.elements,
+      pagination: resultat.pagination,
+      // `non_lues` = total des non lues toutes pages ; à défaut (ancien
+      // back), calcul sur la page reçue.
+      nonLues: nonLues is num
+          ? nonLues.toInt()
+          : int.tryParse('$nonLues') ??
+              resultat.elements.where((n) => !n.lue).length,
+    );
   }
 
   @override
   Future<void> marquerNotificationLue(String id) async {
     await dio.patch(Env.notificationLire(id));
+  }
+
+  @override
+  Future<void> marquerToutesNotificationsLues() async {
+    await dio.post(Env.notificationsToutesLues);
   }
 
   @override

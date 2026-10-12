@@ -1,6 +1,8 @@
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:nanei/core/errors/failure.dart';
+import 'package:nanei/core/utils/api_error.dart';
+import 'package:nanei/core/utils/pagination.dart';
 import '../../domain/entities/paiement.dart';
 import '../../domain/repositories/paiement_repository.dart';
 import '../datasources/paiement_remote_datasource.dart';
@@ -10,9 +12,11 @@ class PaiementRepositoryImpl implements PaiementRepository {
   const PaiementRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<Either<Failure, List<Paiement>>> mesPaiements() async {
+  Future<Either<Failure, PageResultat<Paiement>>> mesPaiements(
+      {int? page, int? limit, String? statut}) async {
     try {
-      final result = await remoteDataSource.mesPaiements();
+      final result = await remoteDataSource.mesPaiements(
+          page: page, limit: limit, statut: statut);
       return Right(result);
     } on DioException catch (e) {
       return Left(ServerFailure(errorMessage: _mapDioError(e)));
@@ -51,7 +55,10 @@ class PaiementRepositoryImpl implements PaiementRepository {
       case DioExceptionType.badResponse:
         final code = e.response?.statusCode ?? 0;
         if (code >= 500) return 'Erreur serveur. Réessayez plus tard.';
-        return e.response?.data?['message']?.toString() ?? 'Erreur de paiement.';
+        // Corps d'erreur NON JSON (page HTML d'un proxy, d'un WAF) : `data`
+        // est alors une String et `data['message']` levait une exception
+        // hors du `catch` — la liste restait bloquée en chargement.
+        return messageErreurApi(e, fallback: 'Erreur de paiement.');
       default:
         return e.error?.toString() ?? 'Erreur inconnue.';
     }

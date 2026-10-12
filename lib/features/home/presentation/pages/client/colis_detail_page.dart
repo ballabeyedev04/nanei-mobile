@@ -59,7 +59,8 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
   }
 
   /// GET /avis : le bandeau « Donnez votre avis » n'est affiché que si ce
-  /// colis n'a pas encore été noté.
+  /// colis n'a pas encore été noté. Volontairement NON paginé (sans `page`) :
+  /// il faut la liste complète des avis.
   Future<void> _verifierAvisExistant() async {
     final result = await sl<GetMesAvis>()();
     if (!mounted) return;
@@ -68,7 +69,8 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
       // de toute façon géré (409 → « déjà noté »).
       (_) => setState(() => _aDejaUnAvis = false),
       (liste) => setState(
-          () => _aDejaUnAvis = liste.any((a) => a.colisId == colis.id)),
+          () => _aDejaUnAvis =
+              liste.elements.any((a) => a.colisId == colis.id)),
     );
   }
 
@@ -110,6 +112,9 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
       // On tolère aussi l'enveloppe 'data' et les variantes de nom de champ.
       final body = res.data as Map<String, dynamic>? ?? const {};
       final data = (body['preuve'] ?? body['data']) as Map<String, dynamic>?;
+      // L'utilisateur a pu quitter l'écran pendant l'appel : setState() sur
+      // un State démonté lève une exception.
+      if (!mounted) return;
       setState(() {
         _preuveUrl = data?['photo_url']?.toString() ??
             data?['photoUrl']?.toString() ??
@@ -117,7 +122,7 @@ class _ColisDetailPageState extends State<ColisDetailPage> {
         _loadingPreuve = false;
       });
     } catch (_) {
-      setState(() => _loadingPreuve = false);
+      if (mounted) setState(() => _loadingPreuve = false);
     }
   }
 

@@ -8,6 +8,7 @@ import 'core/config/env.dart';
 import 'core/services/token_service.dart';
 import 'core/services/verrou_biometrique.dart';
 import 'core/services/taux_change_service.dart';
+import 'core/network/auth_interceptor.dart';
 import 'core/network/retry_interceptor.dart';
 import 'core/utils/dio_logger_interceptor.dart';
 import 'core/theme/theme_notifier.dart';
@@ -56,6 +57,7 @@ import 'features/home/domain/usecases/get_colis_recus.dart';
 import 'features/home/domain/usecases/get_statistiques_colis.dart';
 import 'features/home/domain/usecases/get_notifications.dart';
 import 'features/home/domain/usecases/marquer_notification_lue.dart';
+import 'features/home/domain/usecases/marquer_toutes_notifications_lues.dart';
 import 'features/home/domain/usecases/rechercher_client.dart';
 import 'features/home/domain/usecases/get_countries.dart';
 import 'features/home/domain/usecases/get_pricing_by_country.dart';
@@ -125,71 +127,10 @@ Future<void> init() async {
       headers: {'Accept': 'application/json'},
     ));
 
-    Future<bool> rafraichir() => sl<TokenService>().tryRefresh((rt) async {
-          final response = await refreshDio.post(
-            Env.authRefresh,
-            data: {'refreshToken': rt},
-          );
-          return response.data as Map<String, dynamic>?;
-        });
-
-    // Routes d'authentification : jamais de jeton ni de rafraîchissement
-    // (login, register, refresh, logout, mot de passe oublié…).
-    bool estRouteAuth(String path) {
-      final p = path.split('?')[0].trim();
-      return p.contains('/auth/');
-    }
-
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        if (!estRouteAuth(options.path) &&
-            !options.headers.containsKey('Authorization')) {
-          final tokenService = sl<TokenService>();
-          // Jeton expiré côté client (1 h) : on le renouvelle AVANT l'appel
-          // plutôt que d'attendre un 401.
-          if (!await tokenService.isAuthenticated &&
-              await tokenService.aUnRefreshToken) {
-            await rafraichir();
-          }
-          final token = await tokenService.getToken();
-          if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $token';
-          }
-        }
-        return handler.next(options);
-      },
-      onError: (DioException e, handler) async {
-        final opts = e.requestOptions;
-        final dejaRejouee = opts.extra['_rejoueApresRefresh'] == true;
-        if (e.response?.statusCode != 401 ||
-            estRouteAuth(opts.path) ||
-            dejaRejouee) {
-          return handler.next(e);
-        }
-
-        final tokenService = sl<TokenService>();
-        final jetonUtilise = (opts.headers['Authorization'] as String?)
-            ?.replaceFirst('Bearer ', '');
-        final jetonActuel = await tokenService.getToken();
-
-        // Un autre appel a déjà renouvelé le jeton pendant que celui-ci
-        // était en vol : on rejoue simplement avec le nouveau jeton.
-        final dejaRenouvele = jetonActuel != null &&
-            jetonActuel.isNotEmpty &&
-            jetonActuel != jetonUtilise;
-        final ok = dejaRenouvele || await rafraichir();
-        if (!ok) return handler.next(e);
-
-        final nouveauJeton = await tokenService.getToken();
-        opts.headers['Authorization'] = 'Bearer $nouveauJeton';
-        opts.extra['_rejoueApresRefresh'] = true;
-        try {
-          final response = await dio.fetch(opts);
-          return handler.resolve(response);
-        } on DioException catch (retryError) {
-          return handler.next(retryError);
-        }
-      },
+    dio.interceptors.add(AuthInterceptor(
+      dio: dio,
+      tokenService: sl<TokenService>(),
+      refreshCall: AuthInterceptor.refreshVia(refreshDio),
     ));
 
     dio.interceptors.add(RetryInterceptor(dio: dio, maxRetries: 3));
@@ -229,6 +170,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => RechercherClient(sl()));
   sl.registerLazySingleton(() => GetNotifications(sl()));
   sl.registerLazySingleton(() => MarquerNotificationLue(sl()));
+  sl.registerLazySingleton(() => MarquerToutesNotificationsLues(sl()));
   sl.registerLazySingleton(() => GetCountries(sl()));
   sl.registerLazySingleton(() => GetPricingByCountry(sl()));
   sl.registerLazySingleton(() => CalculerPrix(sl()));
@@ -255,6 +197,7 @@ Future<void> init() async {
         rechercherClient: sl(),
         getNotifications: sl(),
         marquerNotificationLue: sl(),
+        marquerToutesNotificationsLues: sl(),
       ));
 
   // ── Feature : Contacts ────────────────────────────────────────────────────

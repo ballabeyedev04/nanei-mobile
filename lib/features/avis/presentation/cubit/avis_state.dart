@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:nanei/core/utils/pagination.dart';
 import '../../domain/entities/avis_entity.dart';
 
 abstract class AvisState extends Equatable {
@@ -30,9 +31,11 @@ class AvisChargement extends AvisState {
 
 class AvisCharges extends AvisState {
   final List<AvisEntity> avis;
-  const AvisCharges(this.avis);
+  final InfoPagination pagination;
+  AvisCharges(this.avis, {InfoPagination? pagination})
+      : pagination = pagination ?? InfoPagination.unePage(avis.length);
   @override
-  List<Object?> get props => [avis];
+  List<Object?> get props => [avis, pagination];
 }
 
 class AvisError extends AvisState {

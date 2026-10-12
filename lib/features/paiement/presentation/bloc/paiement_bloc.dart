@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nanei/core/utils/app_logger.dart';
+import 'package:nanei/core/utils/pagination.dart';
+import '../../domain/entities/paiement.dart';
 import '../../domain/usecases/get_mes_paiements.dart';
 import '../../domain/usecases/initier_paiement.dart';
 import 'paiement_event.dart';
@@ -8,6 +10,12 @@ import 'paiement_state.dart';
 class PaiementBloc extends Bloc<PaiementEvent, PaiementState> {
   final GetMesPaiements getMesPaiements;
   final InitierPaiement initierPaiement;
+
+  /// Page affichée (rechargée par RefreshPaiements).
+  int _pageCourante = 1;
+
+  /// Filtre de statut courant, passé au serveur ('tous' = aucun).
+  String _statut = 'tous';
 
   PaiementBloc({
     required this.getMesPaiements,
@@ -19,15 +27,31 @@ class PaiementBloc extends Bloc<PaiementEvent, PaiementState> {
   }
 
   Future<void> _onLoad(PaiementEvent event, Emitter<PaiementState> emit) async {
+    final page = event is LoadMesPaiements && event.page != null
+        ? event.page!
+        : _pageCourante;
+    if (event is LoadMesPaiements && event.statut != null) {
+      _statut = event.statut!;
+    }
     emit(PaiementLoading());
-    final result = await getMesPaiements();
-    result.fold(
-      (failure) {
-        AppLogger.warning('État erreur: PaiementBloc', failure.errorMessage);
-        emit(PaiementError(failure.errorMessage));
-      },
-      (paiements) => emit(PaiementLoaded(paiements)),
-    );
+    try {
+      final res = await chargerPageNonVide<Paiement>(page, (p) async {
+        final result = await getMesPaiements(
+            page: p, limit: kTaillePage, statut: _statut);
+        return result.fold((f) => throw _EchecChargement(f.errorMessage),
+            (page) => page);
+      });
+      _pageCourante = res.pagination.page;
+      emit(PaiementLoaded(
+        res.elements,
+        pagination: res.pagination,
+        parStatut: res.parStatut,
+        statut: _statut,
+      ));
+    } on _EchecChargement catch (e) {
+      AppLogger.warning('État erreur: PaiementBloc', e.message);
+      emit(PaiementError(e.message));
+    }
   }
 
   Future<void> _onInitier(InitierPaiementEvent event, Emitter<PaiementState> emit) async {
@@ -47,4 +71,9 @@ class PaiementBloc extends Bloc<PaiementEvent, PaiementState> {
       },
     );
   }
+}
+
+class _EchecChargement implements Exception {
+  final String message;
+  const _EchecChargement(this.message);
 }

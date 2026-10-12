@@ -24,11 +24,20 @@ class SecurityValidators {
   }
 
   // ── URL de paiement ────────────────────────────────────────────────────────
+  // Hôtes (et leurs sous-domaines) autorisés pour la page de paiement.
+  //
+  // Orange Money : l'API Web Payment (`api.orange.com/orange-money-webpay`,
+  // voir orangeMoney.service.js côté back) renvoie un `payment_url` sur
+  // `mpayment.orange-money.com` (production) ou
+  // `webpayment-qualif.orange-money.com` (recette) — jamais sur
+  // `checkout.` / `api.orange-money.com`, seuls autorisés auparavant : toute
+  // URL Orange Money réelle était refusée (« Lien de paiement invalide »).
+  // Le domaine d'Orange Money est donc admis avec ses sous-domaines (HTTPS
+  // toujours obligatoire, `orange-money.com.evil.io` toujours refusé).
   static const _allowedPaymentHosts = [
     'checkout.wave.com',
     'pay.wave.com',
-    'checkout.orange-money.com',
-    'api.orange-money.com',
+    'orange-money.com',
     'api.app-nanei.com',
   ];
 

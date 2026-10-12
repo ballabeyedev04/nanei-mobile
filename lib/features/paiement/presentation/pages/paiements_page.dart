@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:nanei/core/theme/app_color.dart';
 import 'package:nanei/core/utils/security_validators.dart';
 import 'package:nanei/core/extensions/double_extensions.dart';
+import 'package:nanei/core/widgets/barre_pagination.dart';
 import '../bloc/paiement_bloc.dart';
 import '../bloc/paiement_event.dart';
 import '../bloc/paiement_state.dart';
@@ -28,6 +29,12 @@ class _PaiementsPageState extends State<PaiementsPage>
     with WidgetsBindingObserver {
   bool _returningFromBrowser = false;
   StreamSubscription<RetourPaiement>? _retourPaiementSub;
+  final _scrollController = ScrollController();
+
+  void _allerALaPage(int page) {
+    context.read<PaiementBloc>().add(LoadMesPaiements(page: page));
+    remonterEnHaut(_scrollController);
+  }
 
   @override
   void initState() {
@@ -45,6 +52,7 @@ class _PaiementsPageState extends State<PaiementsPage>
   @override
   void dispose() {
     _retourPaiementSub?.cancel();
+    _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -129,6 +137,7 @@ class _PaiementsPageState extends State<PaiementsPage>
           }
         },
         child: CustomScrollView(
+          controller: _scrollController,
           slivers: [
             SliverAppBar(
               pinned: true,
@@ -181,18 +190,29 @@ class _PaiementsPageState extends State<PaiementsPage>
                   );
                 }
                 if (state is PaiementLoaded) {
-                  if (state.paiements.isEmpty) {
+                  if (state.paiements.isEmpty && state.pagination.pages <= 1) {
                     return const SliverFillRemaining(child: _EmptyView());
                   }
                   return SliverPadding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                     sliver: SliverList.separated(
-                      itemCount: state.paiements.length,
+                      // + 1 : barre de pagination en fin de liste.
+                      itemCount: state.paiements.length + 1,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _PaiementCard(
-                        paiement: state.paiements[i],
-                        onPayer: () => _afficherChoixPaiement(state.paiements[i]),
-                      ),
+                      itemBuilder: (_, i) {
+                        if (i == state.paiements.length) {
+                          return BarrePagination(
+                            pagination: state.pagination,
+                            onPage: _allerALaPage,
+                            libelleTotal: 'paiements',
+                          );
+                        }
+                        return _PaiementCard(
+                          paiement: state.paiements[i],
+                          onPayer: () =>
+                              _afficherChoixPaiement(state.paiements[i]),
+                        );
+                      },
                     ),
                   );
                 }
@@ -214,9 +234,10 @@ class _SummaryRow extends StatelessWidget {
     return BlocBuilder<PaiementBloc, PaiementState>(
       builder: (_, state) {
         if (state is! PaiementLoaded) return const SizedBox.shrink();
-        final total   = state.paiements.length;
-        final payes   = state.paiements.where((p) => p.estPaye).length;
-        final attente = state.paiements.where((p) => p.estEnAttente || p.estEchoue).length;
+        // Compteurs sur toutes les pages (`par_statut` du back).
+        final total   = state.parStatut['total'] ?? state.pagination.total;
+        final payes   = state.compte('paye');
+        final attente = state.compte('en_attente') + state.compte('echoue');
         return Row(children: [
           _MiniStat(label: 'Total', value: '$total', color: const Color(0xFF6366F1)),
           const SizedBox(width: 10),

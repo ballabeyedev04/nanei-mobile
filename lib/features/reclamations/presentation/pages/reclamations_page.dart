@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:nanei/core/theme/app_color.dart';
+import 'package:nanei/core/widgets/barre_pagination.dart';
 import '../../domain/entities/reclamation_entity.dart';
 import '../cubit/reclamations_cubit.dart';
 import '../cubit/reclamations_state.dart';
@@ -44,7 +45,8 @@ class _ReclamationsPageState extends State<ReclamationsPage> {
       body: BlocConsumer<ReclamationsCubit, ReclamationsState>(
         listener: (context, state) {
           if (state is ReclamationEnvoyee) {
-            context.read<ReclamationsCubit>().loadReclamations();
+            // La nouvelle réclamation est la plus récente : page 1.
+            context.read<ReclamationsCubit>().loadReclamations(page: 1);
           }
         },
         builder: (context, state) {
@@ -56,16 +58,31 @@ class _ReclamationsPageState extends State<ReclamationsPage> {
             return _buildError(state.message);
           }
           if (state is ReclamationsLoaded) {
-            if (state.reclamations.isEmpty) return _buildEmpty();
+            if (state.reclamations.isEmpty && state.pagination.pages <= 1) {
+              return _buildEmpty();
+            }
             return RefreshIndicator(
+              // Recharge la page courante.
               onRefresh: () =>
                   context.read<ReclamationsCubit>().loadReclamations(),
               color: AppColor.kPrimary,
               child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                itemCount: state.reclamations.length,
-                itemBuilder: (_, i) =>
-                    _buildCard(state.reclamations[i]),
+                // + 1 : barre de pagination en fin de liste.
+                itemCount: state.reclamations.length + 1,
+                itemBuilder: (_, i) {
+                  if (i == state.reclamations.length) {
+                    return BarrePagination(
+                      pagination: state.pagination,
+                      libelleTotal: 'réclamations',
+                      onPage: (p) => context
+                          .read<ReclamationsCubit>()
+                          .loadReclamations(page: p),
+                    );
+                  }
+                  return _buildCard(state.reclamations[i]);
+                },
               ),
             );
           }

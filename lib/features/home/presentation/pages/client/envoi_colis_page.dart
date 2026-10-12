@@ -85,6 +85,9 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
   // _selectedDestinataire.
   DestinataireManuel? _destinataireManuel;
   bool _isLoadingRecherche = false;
+  // Vrai quand une recherche valide (e-mail complet / téléphone) n'a trouvé
+  // aucun compte : on propose alors la saisie manuelle du destinataire.
+  bool _rechercheSansResultat = false;
   Timer? _debounceTimer;
   // Vrai le temps d'une modification PROGRAMMATIQUE du champ de recherche
   // (sélection d'un résultat, ajout manuel) : le listener doit alors l'ignorer
@@ -305,18 +308,29 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         });
       }
 
-      if (query.isEmpty) {
-        setState(() => _resultatsRecherche = []);
+      // Le back ne répond qu'à un e-mail complet ou un numéro de téléphone :
+      // pas d'appel tant que la saisie n'a pas cette forme.
+      if (!estRechercheDestinataireValide(query)) {
+        setState(() {
+          _resultatsRecherche = [];
+          _rechercheSansResultat = false;
+        });
         return;
       }
-      setState(() => _isLoadingRecherche = true);
+      setState(() {
+        _isLoadingRecherche = true;
+        _rechercheSansResultat = false;
+      });
       try {
         final results = await sl<RechercherClient>()(query);
+        if (!mounted) return;
         setState(() {
           _resultatsRecherche = results;
+          _rechercheSansResultat = results.isEmpty;
           _isLoadingRecherche = false;
         });
       } catch (e) {
+        if (!mounted) return;
         setState(() => _isLoadingRecherche = false);
       }
     });
@@ -491,7 +505,9 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         );
         if (context.mounted) {
           try {
-            context.read<ColisBloc>().add(LoadColisEnvoyes());
+            context.read<ColisBloc>()
+              ..add(LoadColisEnvoyes(page: 1))
+              ..add(LoadColisTous(page: 1));
           } catch (_) {}
         }
         Navigator.of(context).pop(true);
@@ -527,7 +543,9 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           ToastificationType.success,
         );
         try {
-          context.read<ColisBloc>().add(LoadColisEnvoyes());
+          context.read<ColisBloc>()
+              ..add(LoadColisEnvoyes(page: 1))
+              ..add(LoadColisTous(page: 1));
         } catch (_) {}
         Navigator.of(context).pop(true);
       }
@@ -958,32 +976,45 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         color: AppColor.kAccentSoft,
         borderRadius: BorderRadius.circular(12),
       ),
+      // Avec l'affichage double devise (€ + FCFA), libellé + montant + prix
+      // au kg ne tiennent plus sur une ligne d'un téléphone de 390 px : la
+      // ligne débordait de ~90 px (montant tronqué, bandes d'erreur en
+      // debug). Le contenu passe donc à la ligne au lieu de déborder.
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.info_outline_rounded,
               size: 16, color: AppColor.kPrimary),
           const SizedBox(width: 8),
-          Text(
-            'Prix transport estimé : ',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              color: AppColor.kGrayscale60,
-            ),
-          ),
-          Text(
-            shipping.toEurFcfa(),
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: AppColor.kPrimary,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            _pricePerKg.toEurFcfaPerKg(),
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              color: AppColor.kGrayscale40,
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 2,
+              children: [
+                Text(
+                  'Prix transport estimé : ',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: AppColor.kGrayscale60,
+                  ),
+                ),
+                Text(
+                  shipping.toEurFcfa(),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColor.kPrimary,
+                  ),
+                ),
+                Text(
+                  _pricePerKg.toEurFcfaPerKg(),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: AppColor.kGrayscale40,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1013,8 +1044,9 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                   controller: _rechercheController,
                   focusNode: _rechercheFocus,
                   style: _textStyle(),
+                  keyboardType: TextInputType.emailAddress,
                   decoration: _inputDeco(
-                    hint: 'Nom, prénom, email...',
+                    hint: 'E-mail ou numéro de téléphone du destinataire',
                     icon: Icons.search_rounded,
                     focused: _rechercheFocused,
                   ),
@@ -1031,7 +1063,9 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              "Le destinataire n'a pas de compte ? Utilisez « + Ajouter destinataire ».",
+              "Saisissez l'e-mail complet ou le numéro de téléphone exact du "
+              "destinataire. Pas de compte Nanei ? Utilisez « + Ajouter "
+              "destinataire ».",
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 11.5,
                 color: AppColor.kGrayscale40,
@@ -1125,8 +1159,11 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                                       color: AppColor.kGrayscaleDark100,
                                     ),
                                   ),
+                                  // E-mail / téléphone masqués par le back.
                                   Text(
-                                    c.email,
+                                    [c.email, c.telephone]
+                                        .where((v) => v.isNotEmpty)
+                                        .join(' · '),
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
                                       color: AppColor.kGrayscale40,
@@ -1148,6 +1185,13 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                 ),
               ),
             ),
+
+          if (_rechercheSansResultat &&
+              !_isLoadingRecherche &&
+              !_hasDestinataire &&
+              _resultatsRecherche.isEmpty &&
+              _rechercheController.text.trim().isNotEmpty)
+            _buildAucunDestinataireTrouve(),
 
           if (_hasDestinataire) ...[
             const SizedBox(height: 12),
@@ -1584,6 +1628,71 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     );
   }
 
+  /// Recherche valide sans résultat : propose la saisie manuelle.
+  Widget _buildAucunDestinataireTrouve() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColor.kAccentSoft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColor.kPrimary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.person_search_rounded,
+                  size: 18, color: AppColor.kPrimary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Aucun compte Nanei ne correspond à cet e-mail ou ce '
+                  'numéro.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColor.kGrayscaleDark100,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Vérifiez la saisie, ou saisissez vous-même les coordonnées du '
+            'destinataire.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              color: AppColor.kGrayscale40,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _ouvrirModalAjoutDestinataire,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColor.kPrimary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: Text(
+                'Saisir le destinataire manuellement',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _ouvrirModalAjoutDestinataire() async {
     final result = await showModalBottomSheet<DestinataireManuel>(
       context: context,
@@ -1601,6 +1710,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
         _destinataireManuel = result;
         _selectedDestinataire = null;
         _resultatsRecherche = [];
+        _rechercheSansResultat = false;
         _debounceTimer?.cancel();
         _suppressSearch = true;
         _rechercheController.text = '${result.prenom} ${result.nom}'.trim();

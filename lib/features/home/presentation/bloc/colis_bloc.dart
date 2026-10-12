@@ -1,6 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nanei/core/utils/app_logger.dart';
+import 'package:nanei/core/utils/pagination.dart';
+import '../../domain/entities/colis.dart';
 import '../../domain/entities/notification_model.dart';
+import '../../domain/entities/page_notifications.dart';
 import '../../domain/usecases/get_colis_envoyes.dart';
 import '../../domain/usecases/get_colis_recus.dart';
 import '../../domain/usecases/get_statistiques_colis.dart';
@@ -8,6 +11,7 @@ import '../../domain/usecases/envoyer_colis.dart';
 import '../../domain/usecases/rechercher_client.dart';
 import '../../domain/usecases/get_notifications.dart';
 import '../../domain/usecases/marquer_notification_lue.dart';
+import '../../domain/usecases/marquer_toutes_notifications_lues.dart';
 import 'colis_event.dart';
 import 'colis_state.dart';
 
@@ -19,6 +23,7 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
   final RechercherClient rechercherClient;
   final GetNotifications getNotifications;
   final MarquerNotificationLue marquerNotificationLue;
+  final MarquerToutesNotificationsLues marquerToutesNotificationsLues;
 
   ColisBloc({
     required this.getColisEnvoyes,
@@ -28,24 +33,35 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
     required this.rechercherClient,
     required this.getNotifications,
     required this.marquerNotificationLue,
+    required this.marquerToutesNotificationsLues,
   }) : super(const ColisState()) {
     on<LoadColisEnvoyes>(_onLoadColisEnvoyes);
     on<LoadColisRecus>(_onLoadColisRecus);
+    on<LoadColisTous>(_onLoadColisTous);
     on<LoadStatistiques>(_onLoadStatistiques);
     on<EnvoyerColisRequested>(_onEnvoyerColis);
     on<RechercherClientRequested>(_onRechercherClient);
     on<LoadNotifications>(_onLoadNotifications);
     on<MarquerNotificationLueRequested>(_onMarquerLue);
+    on<MarquerToutesNotificationsLuesRequested>(_onMarquerToutesLues);
     on<ResetColisStatus>(_onReset);
   }
 
   Future<void> _onLoadColisEnvoyes(
       LoadColisEnvoyes event, Emitter<ColisState> emit) async {
-    emit(state.copyWith(loadingEnvoyes: true, error: null));
+    final statut = event.statut ?? state.statutEnvoyes;
+    emit(state.copyWith(
+        loadingEnvoyes: true, statutEnvoyes: statut, error: null));
     try {
-      final colis = await getColisEnvoyes();
+      final res = await chargerPageNonVide<Colis>(
+        event.page ?? state.paginationEnvoyes.page,
+        (p) => getColisEnvoyes(page: p, limit: kTaillePage, statut: statut),
+      );
       emit(state.copyWith(
-          colisEnvoyes: colis, loadingEnvoyes: false));
+          colisEnvoyes: res.elements,
+          paginationEnvoyes: res.pagination,
+          parStatutEnvoyes: res.parStatut,
+          loadingEnvoyes: false));
     } catch (e, st) {
       AppLogger.error('Erreur dans ColisBloc._onLoadColisEnvoyes', e, st);
       emit(state.copyWith(
@@ -55,15 +71,71 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
 
   Future<void> _onLoadColisRecus(
       LoadColisRecus event, Emitter<ColisState> emit) async {
-    emit(state.copyWith(loadingRecus: true, error: null));
+    final statut = event.statut ?? state.statutRecus;
+    emit(state.copyWith(loadingRecus: true, statutRecus: statut, error: null));
     try {
-      final colis = await getColisRecus();
-      emit(state.copyWith(colisRecus: colis, loadingRecus: false));
+      final res = await chargerPageNonVide<Colis>(
+        event.page ?? state.paginationRecus.page,
+        (p) => getColisRecus(page: p, limit: kTaillePage, statut: statut),
+      );
+      emit(state.copyWith(
+          colisRecus: res.elements,
+          paginationRecus: res.pagination,
+          parStatutRecus: res.parStatut,
+          loadingRecus: false));
     } catch (e, st) {
       AppLogger.error('Erreur dans ColisBloc._onLoadColisRecus', e, st);
       emit(state.copyWith(
           loadingRecus: false, error: e.toString()));
     }
+  }
+
+  /// Onglet « Tous » : la page N contient la page N des envoyés et la page N
+  /// des reçus (moitié de [kTaillePage] chacun), fusionnées par date.
+  Future<void> _onLoadColisTous(
+      LoadColisTous event, Emitter<ColisState> emit) async {
+    final statut = event.statut ?? state.statutTous;
+    emit(state.copyWith(loadingTous: true, statutTous: statut, error: null));
+    try {
+      final res = await chargerPageNonVide<Colis>(
+        event.page ?? state.paginationTous.page,
+        (p) => _chargerPageTous(p, statut),
+      );
+      emit(state.copyWith(
+          colisTous: res.elements,
+          paginationTous: res.pagination,
+          parStatutTous: res.parStatut,
+          loadingTous: false));
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onLoadColisTous', e, st);
+      emit(state.copyWith(loadingTous: false, error: e.toString()));
+    }
+  }
+
+  Future<PageResultat<Colis>> _chargerPageTous(int page, String statut) async {
+    const demi = kTaillePage ~/ 2;
+    final resultats = await Future.wait([
+      getColisEnvoyes(page: page, limit: demi, statut: statut),
+      getColisRecus(page: page, limit: demi, statut: statut),
+    ]);
+    final envoyes = resultats[0];
+    final recus = resultats[1];
+    final fusion = [...envoyes.elements, ...recus.elements]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final pages = envoyes.pagination.pages > recus.pagination.pages
+        ? envoyes.pagination.pages
+        : recus.pagination.pages;
+    return PageResultat<Colis>(
+      elements: fusion,
+      pagination: InfoPagination(
+        page: page,
+        limit: kTaillePage,
+        total: envoyes.pagination.total + recus.pagination.total,
+        pages: pages,
+      ),
+      // Compteurs toutes pages : somme envoyés + reçus.
+      parStatut: additionnerParStatut(envoyes.parStatut, recus.parStatut),
+    );
   }
 
   Future<void> _onLoadStatistiques(
@@ -93,8 +165,10 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
         colisEnvoye: true,
         derniereColis: reference,
       ));
-      // Recharger automatiquement la liste après envoi
-      add(LoadColisEnvoyes());
+      // Recharger automatiquement la liste après envoi : le nouveau colis
+      // est en tête de la première page.
+      add(LoadColisEnvoyes(page: 1));
+      add(LoadColisTous(page: 1));
     } catch (e, st) {
       AppLogger.error('Erreur dans ColisBloc._onEnvoyerColis', e, st);
       AppLogger.warning('État erreur: ColisBloc envoi colis', e.toString());
@@ -119,16 +193,45 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
 
   Future<void> _onLoadNotifications(
       LoadNotifications event, Emitter<ColisState> emit) async {
+    emit(state.copyWith(loadingNotifications: true));
     try {
-      final notifs = await getNotifications();
-      emit(state.copyWith(notifications: notifs));
-    } catch (_) {}
+      final res = await chargerPageNonVide<NotificationModel>(
+        event.page ?? state.paginationNotifications.page,
+        (p) => getNotifications(page: p, limit: kTaillePage),
+      );
+      final nonLues = res is PageNotifications
+          ? res.nonLues
+          : res.elements.where((n) => !n.lue).length;
+      emit(state.copyWith(
+        notifications: res.elements,
+        paginationNotifications: res.pagination,
+        nonLues: nonLues,
+        loadingNotifications: false,
+      ));
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onLoadNotifications', e, st);
+      emit(state.copyWith(loadingNotifications: false));
+    }
+  }
+
+  Future<void> _onMarquerToutesLues(
+      MarquerToutesNotificationsLuesRequested event,
+      Emitter<ColisState> emit) async {
+    try {
+      await marquerToutesNotificationsLues();
+    } catch (e, st) {
+      AppLogger.error('Erreur dans ColisBloc._onMarquerToutesLues', e, st);
+    }
+    // Recharge la page courante (et le compteur `non_lues`).
+    add(LoadNotifications());
   }
 
   Future<void> _onMarquerLue(
       MarquerNotificationLueRequested event, Emitter<ColisState> emit) async {
     try {
       await marquerNotificationLue(event.id);
+      final etaitNonLue =
+          state.notifications.any((n) => n.id == event.id && !n.lue);
       final updated = state.notifications.map<NotificationModel>((n) {
         if (n.id != event.id) return n;
         return NotificationModel(
@@ -143,7 +246,12 @@ class ColisBloc extends Bloc<ColisEvent, ColisState> {
           lue: true,
         );
       }).toList();
-      emit(state.copyWith(notifications: updated));
+      emit(state.copyWith(
+        notifications: updated,
+        nonLues: etaitNonLue && state.nonLues > 0
+            ? state.nonLues - 1
+            : state.nonLues,
+      ));
     } catch (_) {}
   }
 

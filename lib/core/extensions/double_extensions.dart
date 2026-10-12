@@ -21,8 +21,15 @@ extension DoubleFormatting on double {
       '${toStringAsFixed(decimals)} € (≈ ${_fcfaFormatted()} FCFA)';
 
   /// Variante "prix par kg" : "5 €/kg (≈ 3 280 FCFA/kg)".
-  String toEurFcfaPerKg({int decimals = 0}) =>
-      '${toStringAsFixed(decimals)} €/kg (≈ ${_fcfaFormatted()} FCFA/kg)';
+  ///
+  /// Sans [decimals] : entier affiché sans décimale (« 5 €/kg »), sinon
+  /// deux décimales (« 9.50 €/kg »). Avant, l'arrondi à l'unité affichait
+  /// « 10 €/kg » pour une grille à 9,50 €/kg (prix au kg faux à l'écran,
+  /// alors que le total, lui, était calculé sur 9,50).
+  String toEurFcfaPerKg({int? decimals}) {
+    final d = decimals ?? (this == roundToDouble() ? 0 : 2);
+    return '${toStringAsFixed(d)} €/kg (≈ ${_fcfaFormatted()} FCFA/kg)';
+  }
 }
 
 extension NullableDoubleFormatting on double? {

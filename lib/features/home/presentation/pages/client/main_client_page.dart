@@ -87,6 +87,7 @@ class _MainClientPageState extends State<MainClientPage>
         ..add(LoadStatistiques())
         ..add(LoadColisEnvoyes())
         ..add(LoadColisRecus())
+        ..add(LoadColisTous())
         ..add(LoadNotifications()),
       child: Builder(builder: (context) {
         final pages = [
@@ -144,14 +145,11 @@ class _BottomNav extends StatelessWidget {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return BlocBuilder<ColisBloc, ColisState>(
-      buildWhen: (prev, curr) {
-        final prevUnread = prev.notifications.where((n) => !n.lue).length;
-        final currUnread = curr.notifications.where((n) => !n.lue).length;
-        return prevUnread != currUnread;
-      },
+      // `nonLues` : total des non lues toutes pages (champ `non_lues` du
+      // back), pas seulement celles de la page affichée.
+      buildWhen: (prev, curr) => prev.nonLues != curr.nonLues,
       builder: (context, state) {
-        final unreadCount =
-            state.notifications.where((n) => !n.lue).length;
+        final unreadCount = state.nonLues;
 
         return Container(
           decoration: BoxDecoration(
