@@ -156,7 +156,12 @@ class _NouvelleReclamationPageState extends State<NouvelleReclamationPage> {
                       ? const Center(child: CircularProgressIndicator())
                       : DropdownButtonFormField<String>(
                           value: _colisIdSelectionne,
+                          // Toute la largeur disponible, texte tronqué : une
+                          // référence longue ne fait plus déborder le champ.
+                          isExpanded: true,
                           hint: Text('Sélectionnez un colis',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13,
                                   color: AppColor.kGrayscale40)),
@@ -165,6 +170,8 @@ class _NouvelleReclamationPageState extends State<NouvelleReclamationPage> {
                                     value: c['id']?.toString(),
                                     child: Text(
                                       '#${c['reference'] ?? c['id']}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.plusJakartaSans(
                                           fontSize: 13),
                                     ),
@@ -214,8 +221,7 @@ class _NouvelleReclamationPageState extends State<NouvelleReclamationPage> {
                 _buildCard(children: [
                   Row(
                     children: [
-                      _label('Photos (max 5)'),
-                      const Spacer(),
+                      Expanded(child: _label('Photos (max 5)')),
                       TextButton.icon(
                         onPressed: _ajouterPhotos,
                         icon: const Icon(Icons.add_photo_alternate_rounded,

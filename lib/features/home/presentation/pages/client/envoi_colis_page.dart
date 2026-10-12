@@ -626,10 +626,14 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      // Pastilles souples : sur un écran étroit (ou une police plus large),
+      // les libellés se tronquent au lieu de faire déborder la ligne.
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _stepChip(1, 'Destination', _currentStep >= 1),
+          Flexible(flex: 3, child: _stepChip(1, 'Destination', _currentStep >= 1)),
           Expanded(
+            flex: 2,
             child: Container(
               height: 2,
               margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -641,7 +645,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
               ),
             ),
           ),
-          _stepChip(2, 'Destinataire', _currentStep >= 2),
+          Flexible(flex: 3, child: _stepChip(2, 'Destinataire', _currentStep >= 2)),
         ],
       ),
     );
@@ -649,6 +653,7 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
 
   Widget _stepChip(int n, String label, bool active) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 28,
@@ -669,12 +674,16 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: active ? AppColor.kPrimary : AppColor.kGrayscale40,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: active ? AppColor.kPrimary : AppColor.kGrayscale40,
+            ),
           ),
         ),
       ],
@@ -1408,13 +1417,23 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
                           color: AppColor.kGrayscale60,
                         ),
                       ),
-                      const Spacer(),
-                      Text(
-                        total.toEurFcfa(),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppColor.kPrimary,
+                      const SizedBox(width: 12),
+                      // Montant € + FCFA : réduit pour tenir sur la ligne
+                      // plutôt que de déborder sur un écran étroit.
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              total.toEurFcfa(),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: AppColor.kPrimary,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -1449,13 +1468,18 @@ class _EnvoiColisPageState extends State<EnvoiColisPage> {
             fontWeight: FontWeight.w500,
           ),
         ),
-        const Spacer(),
-        Text(
-          value,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppColor.kGrayscaleDark100,
+        const SizedBox(width: 8),
+        // La valeur (€ + FCFA) passe à la ligne, alignée à droite, au lieu
+        // de faire déborder la ligne sur un écran étroit.
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColor.kGrayscaleDark100,
+            ),
           ),
         ),
       ],

@@ -15,3 +15,9 @@ paths = ['''(^|/)ios/Podfile\.lock$''', '''(^|/)macos/Podfile\.lock$''', '''(^|/
 [[allowlists]]
 description = "Dossier interne de git (objets, configuration) : pas du code. Le checkout de GitHub Actions y écrit son jeton d'accès temporaire."
 paths = ['''(^|/)\.git/''']
+
+[[allowlists]]
+description = "Faux mots de passe des tests (forme « Xxx-Secret-N », ex. 'Nouveau-Secret-2026' dans test/…/profils_page_test.dart) : valeurs inventées pour vérifier le corps envoyé à PUT /account/change-password, jamais des identifiants réels. Les DEUX conditions sont exigées : un vrai secret dans test/ reste détecté, et un « …-Secret-N » hors de test/ aussi."
+condition = "AND"
+paths = ['''(^|/)test/''']
+regexes = ['''(?i)\b[a-z]+-secret-[0-9]+\b''']
